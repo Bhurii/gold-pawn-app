@@ -1,65 +1,146 @@
-import Image from "next/image";
+'use client'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+export default function Dashboard() {
+  const [budget, setBudget] = useState(0)
+  const [activePawns, setActivePawns] = useState(0)
+  const [activeAmount, setActiveAmount] = useState(0)
+  const [monthInterest, setMonthInterest] = useState(0)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadDashboard()
+  }, [])
+
+  async function loadDashboard() {
+    try {
+      const { data: settings } = await supabase
+        .from('settings').select('*').single()
+      if (settings) setBudget(settings.invest_budget)
+
+      const { data: pawns } = await supabase
+        .from('pawns').select('*').eq('status', 'active')
+      if (pawns) {
+        setActivePawns(pawns.length)
+        setActiveAmount(pawns.reduce((s, p) => s + p.amount, 0))
+      }
+
+      const now = new Date()
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString().split('T')[0]
+      const { data: interests } = await supabase
+        .from('interest_payments')
+        .select('amount')
+        .gte('payment_date', firstDay)
+      if (interests)
+        setMonthInterest(interests.reduce((s, i) => s + i.amount, 0))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const remaining = budget - activeAmount
+  const usedPct = budget > 0 ? Math.round((activeAmount / budget) * 100) : 0
+
+  function fmt(n: number) {
+    return n.toLocaleString('th-TH')
+  }
+
+  if (loading) return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      minHeight: '100dvh', color: 'var(--gold)', fontSize: 14
+    }}>
+      กำลังโหลด...
     </div>
-  );
+  )
+
+  return (
+    <main className="page-container">
+      {/* Header */}
+      <div style={{ padding: '52px 0 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--gold)' }}>ทองจำนำ</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+            {new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          </div>
+        </div>
+        <div style={{
+          width: 40, height: 40, borderRadius: '50%',
+          background: 'linear-gradient(135deg,#C9922A,#E8C55A)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18, fontWeight: 700, color: '#030F08'
+        }}>ท</div>
+      </div>
+
+      {/* Hero Card */}
+      <div style={{
+        background: 'linear-gradient(135deg,#0A2A15,#0F3D1E)',
+        border: '0.5px solid rgba(232,197,90,0.2)',
+        borderRadius: 20, padding: 20, marginBottom: 16
+      }}>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>วงเงินลงทุนคงเหลือ</div>
+        <div style={{ fontSize: 34, fontWeight: 800, color: 'var(--gold)', letterSpacing: -1 }}>
+          ฿{fmt(remaining)}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
+          จากทั้งหมด ฿{fmt(budget)}
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 99, height: 6, marginBottom: 14 }}>
+          <div style={{
+            background: 'linear-gradient(90deg,#C9922A,#E8C55A)',
+            borderRadius: 99, height: 6,
+            width: `${Math.min(usedPct, 100)}%`,
+            transition: 'width 0.5s'
+          }} />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          {[
+            { label: 'ตั๋วจำนำ', value: `${activePawns} ใบ` },
+            { label: 'ยอดปล่อยกู้', value: `฿${fmt(activeAmount)}` },
+            { label: 'ดอกเดือนนี้', value: `฿${fmt(monthInterest)}` },
+          ].map(s => (
+            <div key={s.label} style={{
+              background: 'rgba(255,255,255,0.07)',
+              borderRadius: 12, padding: '10px 8px', textAlign: 'center'
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gold)' }}>{s.value}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+        <a href="/pawn/new" className="btn-primary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>📥</span> จำนำ
+        </a>
+        <a href="/redeem" className="btn-secondary" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <span style={{ fontSize: 18 }}>📤</span> ไถ่ถอน
+        </a>
+      </div>
+
+      {/* Bottom Nav */}
+      <nav className="bottom-nav">
+        {[
+          { icon: '⬛', label: 'หน้าแรก', href: '/', active: true },
+          { icon: '⬛', label: 'รายการ', href: '/pawns', active: false },
+          { icon: '⬛', label: 'รายงาน', href: '/report', active: false },
+          { icon: '⬛', label: 'ตั้งค่า', href: '/settings', active: false },
+        ].map(n => (
+          <a key={n.label} href={n.href}
+            className={`nav-item ${n.active ? 'active' : ''}`}
+            style={{ textDecoration: 'none' }}>
+            <span className="nav-icon">{n.icon}</span>
+            {n.label}
+          </a>
+        ))}
+      </nav>
+    </main>
+  )
 }
