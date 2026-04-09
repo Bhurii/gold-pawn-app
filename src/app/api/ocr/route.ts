@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 async function callGemini(base64: string, mimeType: string) {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('NO_GEMINI_KEY')
-
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
@@ -21,9 +20,9 @@ async function callGemini(base64: string, mimeType: string) {
   )
   if (!res.ok) {
     const err = await res.json()
+    const msg = err.error?.message || 'Gemini error'
     const status = res.status
-    const message = err.error?.message || 'Gemini error'
-    throw Object.assign(new Error(message), { status })
+    throw Object.assign(new Error(msg), { status })
   }
   const data = await res.json()
   return data.candidates[0].content.parts[0].text
@@ -54,6 +53,14 @@ async function callOpenRouter(base64: string, mimeType: string) {
   return data.choices[0].message.content
 }
 
+function shouldFallback(err: any): boolean {
+  if (err.message === 'NO_GEMINI_KEY') return true
+  if (err.status === 429 || err.status === 503) return true
+  const msg = err.message?.toLowerCase() || ''
+  if (msg.includes('quota') || msg.includes('exceeded') || msg.includes('limit')) return true
+  return false
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { base64, mimeType } = await req.json()
@@ -63,8 +70,7 @@ export async function POST(req: NextRequest) {
     try {
       text = await callGemini(base64, mimeType)
     } catch (err: any) {
-      const shouldFallback = err.message === 'NO_GEMINI_KEY' || err.status === 429 || err.status === 503
-      if (shouldFallback) {
+      if (shouldFallback(err)) {
         text = await callOpenRouter(base64, mimeType)
         usedFallback = true
       } else {
