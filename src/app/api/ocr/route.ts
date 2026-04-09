@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+async function resizeBase64(base64: string, mimeType: string): Promise<string> {
+  return base64
+}
+
 async function callGemini(base64: string, mimeType: string) {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('NO_GEMINI_KEY'), { fallback: true })
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -12,9 +16,10 @@ async function callGemini(base64: string, mimeType: string) {
         contents: [{
           parts: [
             { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: 'อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:\n{"ticket_no":"เลขที่ตั๋ว","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
+            { text: 'อ่านสลิปตั๋วจำนำทอง ตอบ JSON เท่านั้น:\n{"ticket_no":"","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
           ]
-        }]
+        }],
+        generationConfig: { maxOutputTokens: 256 }
       })
     }
   )
@@ -23,9 +28,7 @@ async function callGemini(base64: string, mimeType: string) {
     const msg = err.error?.message || 'Gemini error'
     const status = res.status
     const needFallback = status === 429 || status === 503 ||
-      msg.toLowerCase().includes('quota') ||
-      msg.toLowerCase().includes('exceeded') ||
-      msg.toLowerCase().includes('resource_exhausted')
+      msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('exceeded')
     throw Object.assign(new Error(msg), { status, fallback: needFallback })
   }
   const data = await res.json()
@@ -44,12 +47,13 @@ async function callOpenRouter(base64: string, mimeType: string) {
       'X-Title': 'Gold Pawn App',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.0-flash-001',
+      model: 'google/gemini-2.0-flash-lite-001',
+      max_tokens: 256,
       messages: [{
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-          { type: 'text', text: 'อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:\n{"ticket_no":"เลขที่ตั๋ว","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
+          { type: 'text', text: 'อ่านสลิปตั๋วจำนำทอง ตอบ JSON เท่านั้น:\n{"ticket_no":"","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
         ]
       }]
     })
@@ -68,33 +72,22 @@ export async function POST(req: NextRequest) {
   try {
     const { base64, mimeType } = await req.json()
     let text: string
-
     try {
       text = await callGemini(base64, mimeType)
-      aiUsed = 'Gemini 2.0 Flash (free)'
+      aiUsed = 'Gemini Flash Lite (free)'
     } catch (err: any) {
       geminiError = err.message
       if (err.fallback) {
         text = await callOpenRouter(base64, mimeType)
-        aiUsed = 'OpenRouter — Gemini 2.0 Flash'
-      } else {
-        throw err
-      }
+        aiUsed = 'OpenRouter — Gemini Flash Lite'
+      } else throw err
     }
-
     const clean = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean)
-    return NextResponse.json({
-      success: true,
-      data: parsed,
-      ai_used: aiUsed,
-      ...(geminiError && { gemini_fallback_reason: geminiError })
-    })
+    return NextResponse.json({ success: true, data: parsed, ai_used: aiUsed })
   } catch (e: any) {
     return NextResponse.json({
-      success: false,
-      error: e.message,
-      ai_used: aiUsed,
+      success: false, error: e.message, ai_used: aiUsed,
       gemini_key_exists: !!process.env.GEMINI_API_KEY,
       openrouter_key_exists: !!process.env.OPENROUTER_API_KEY
     }, { status: 500 })
