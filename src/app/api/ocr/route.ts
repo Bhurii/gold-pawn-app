@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 async function callGemini(base64: string, mimeType: string) {
+  const key = process.env.GEMINI_API_KEY
+  if (!key) throw Object.assign(new Error('GEMINI_API_KEY not set'), { status: 0 })
+  
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -18,18 +21,20 @@ async function callGemini(base64: string, mimeType: string) {
   )
   if (!res.ok) {
     const err = await res.json()
-    throw Object.assign(new Error(err.error?.message), { status: res.status })
+    throw Object.assign(new Error(err.error?.message || 'Gemini error'), { status: res.status })
   }
   const data = await res.json()
   return data.candidates[0].content.parts[0].text
 }
 
 async function callOpenRouter(base64: string, mimeType: string) {
+  const key = process.env.OPENROUTER_API_KEY
+  if (!key) throw new Error('OPENROUTER_API_KEY not set')
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      'Authorization': `Bearer ${key}`,
     },
     body: JSON.stringify({
       model: 'google/gemini-2.0-flash',
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
     try {
       text = await callGemini(base64, mimeType)
     } catch (err: any) {
-      if (err.status === 429 || err.status === 503) {
+      if (err.status === 429 || err.status === 503 || err.status === 0) {
         text = await callOpenRouter(base64, mimeType)
       } else throw err
     }
@@ -62,6 +67,11 @@ export async function POST(req: NextRequest) {
     const parsed = JSON.parse(clean)
     return NextResponse.json({ success: true, data: parsed })
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 })
+    return NextResponse.json({ 
+      success: false, 
+      error: e.message,
+      gemini_key_exists: !!process.env.GEMINI_API_KEY,
+      openrouter_key_exists: !!process.env.OPENROUTER_API_KEY
+    }, { status: 500 })
   }
 }
