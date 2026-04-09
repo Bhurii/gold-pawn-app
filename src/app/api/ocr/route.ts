@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 async function callGemini(base64: string, mimeType: string) {
   const key = process.env.GEMINI_API_KEY
-  if (!key) throw Object.assign(new Error('GEMINI_API_KEY not set'), { status: 0 })
-  
+  if (!key) throw new Error('NO_GEMINI_KEY')
+
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
@@ -21,7 +21,9 @@ async function callGemini(base64: string, mimeType: string) {
   )
   if (!res.ok) {
     const err = await res.json()
-    throw Object.assign(new Error(err.error?.message || 'Gemini error'), { status: res.status })
+    const status = res.status
+    const message = err.error?.message || 'Gemini error'
+    throw Object.assign(new Error(message), { status })
   }
   const data = await res.json()
   return data.candidates[0].content.parts[0].text
@@ -56,19 +58,26 @@ export async function POST(req: NextRequest) {
   try {
     const { base64, mimeType } = await req.json()
     let text: string
+    let usedFallback = false
+
     try {
       text = await callGemini(base64, mimeType)
     } catch (err: any) {
-      if (err.status === 429 || err.status === 503 || err.status === 0) {
+      const shouldFallback = err.message === 'NO_GEMINI_KEY' || err.status === 429 || err.status === 503
+      if (shouldFallback) {
         text = await callOpenRouter(base64, mimeType)
-      } else throw err
+        usedFallback = true
+      } else {
+        throw err
+      }
     }
+
     const clean = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean)
-    return NextResponse.json({ success: true, data: parsed })
+    return NextResponse.json({ success: true, data: parsed, used_fallback: usedFallback })
   } catch (e: any) {
-    return NextResponse.json({ 
-      success: false, 
+    return NextResponse.json({
+      success: false,
       error: e.message,
       gemini_key_exists: !!process.env.GEMINI_API_KEY,
       openrouter_key_exists: !!process.env.OPENROUTER_API_KEY
