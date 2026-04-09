@@ -98,18 +98,29 @@ export default function NewPawn() {
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 22, cursor: 'pointer' }}>←</button>
         <div style={{ fontSize: 20, fontWeight: 700 }}>บันทึกจำนำ</div>
       </div>
-      <label style={{ display: 'block', border: '1.5px dashed var(--border-hover)', borderRadius: 16, padding: 24, textAlign: 'center', marginBottom: 16, cursor: 'pointer', background: 'var(--surface)' }}>
-        <input type="file" accept="image/*" capture="environment" onChange={handleImage} style={{ display: 'none' }} />
-        {preview ? (
-          <img src={preview} alt="slip" style={{ width: '100%', borderRadius: 12, maxHeight: 240, objectFit: 'contain' }} />
-        ) : (
-          <>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>📷</div>
-            <div style={{ color: 'var(--gold)', fontWeight: 600 }}>ถ่าย หรือ อัปโหลดสลิป</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>AI จะอ่านข้อมูลให้อัตโนมัติ</div>
-          </>
-        )}
-      </label>
+
+      {/* รูปภาพ */}
+      {preview ? (
+        <div style={{ marginBottom: 16, position: 'relative' }}>
+          <img src={preview} alt="slip" style={{ width: '100%', borderRadius: 16, maxHeight: 260, objectFit: 'contain', background: 'var(--surface)' }} />
+          <button onClick={() => { setPreview(''); setImage(null); setScanned(false) }}
+            style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: 99, width: 28, height: 28, cursor: 'pointer', fontSize: 14 }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, border: '1.5px dashed var(--border-hover)', borderRadius: 16, padding: '20px 12px', cursor: 'pointer', background: 'var(--surface)' }}>
+            <input type="file" accept="image/*" capture="environment" onChange={handleImage} style={{ display: 'none' }} />
+            <div style={{ fontSize: 32 }}>📷</div>
+            <div style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 14 }}>ถ่ายรูป</div>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, border: '1.5px dashed var(--border-hover)', borderRadius: 16, padding: '20px 12px', cursor: 'pointer', background: 'var(--surface)' }}>
+            <input type="file" accept="image/*" onChange={handleImage} style={{ display: 'none' }} />
+            <div style={{ fontSize: 32 }}>🖼️</div>
+            <div style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 14 }}>เลือกจากคลัง</div>
+          </label>
+        </div>
+      )}
+
       {scanning && (
         <div style={{ background: 'rgba(232,197,90,0.1)', border: '0.5px solid var(--border-hover)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, color: 'var(--gold)', fontSize: 13, textAlign: 'center' }}>
           ⏳ AI กำลังอ่านสลิป...
@@ -120,6 +131,7 @@ export default function NewPawn() {
           ✓ AI อ่านสลิปแล้ว — ตรวจสอบข้อมูลด้านล่าง
         </div>
       )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>เลขที่ตั๋ว</div>
@@ -134,6 +146,7 @@ export default function NewPawn() {
           <input className="input-field" type="number" placeholder="เช่น 15000" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
         </div>
       </div>
+
       <div style={{ marginTop: 24 }}>
         <button className="btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? 'กำลังบันทึก...' : '💾 บันทึกรายการจำนำ'}
