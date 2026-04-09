@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 async function callGemini(base64: string, mimeType: string) {
   const key = process.env.GEMINI_API_KEY
-  if (!key) throw new Error('NO_GEMINI_KEY')
+  if (!key) throw Object.assign(new Error('NO_GEMINI_KEY'), { fallback: true })
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
     {
@@ -21,7 +21,12 @@ async function callGemini(base64: string, mimeType: string) {
   if (!res.ok) {
     const err = await res.json()
     const msg = err.error?.message || 'Gemini error'
-    throw Object.assign(new Error(msg), { status: res.status })
+    const status = res.status
+    const needFallback = status === 429 || status === 503 ||
+      msg.toLowerCase().includes('quota') ||
+      msg.toLowerCase().includes('exceeded') ||
+      msg.toLowerCase().includes('resource_exhausted')
+    throw Object.assign(new Error(msg), { status, fallback: needFallback })
   }
   const data = await res.json()
   return data.candidates[0].content.parts[0].text
@@ -29,20 +34,22 @@ async function callGemini(base64: string, mimeType: string) {
 
 async function callOpenRouter(base64: string, mimeType: string) {
   const key = process.env.OPENROUTER_API_KEY
-  if (!key) throw new Error('NO_OPENROUTER_KEY')
+  if (!key) throw new Error('OPENROUTER_API_KEY not set')
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${key}`,
+      'HTTP-Referer': 'https://gold-pawn-app.vercel.app',
+      'X-Title': 'Gold Pawn App',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.0-flash',
+      model: 'google/gemini-2.0-flash-001',
       messages: [{
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-          { type: 'text', text: 'อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด ตอบเป็น JSON เท่านั้น:\n{"ticket_no":"เลขที่ตั๋ว","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
+          { type: 'text', text: 'อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:\n{"ticket_no":"เลขที่ตั๋ว","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
         ]
       }]
     })
@@ -55,39 +62,33 @@ async function callOpenRouter(base64: string, mimeType: string) {
   return data.choices[0].message.content
 }
 
-function shouldFallback(err: any): boolean {
-  if (err.message === 'NO_GEMINI_KEY') return true
-  if (err.status === 429 || err.status === 503) return true
-  const msg = err.message?.toLowerCase() || ''
-  return msg.includes('quota') || msg.includes('exceeded') || msg.includes('limit')
-}
-
 export async function POST(req: NextRequest) {
   let aiUsed = 'none'
+  let geminiError = ''
   try {
     const { base64, mimeType } = await req.json()
     let text: string
-    let geminiError = ''
 
     try {
       text = await callGemini(base64, mimeType)
-      aiUsed = 'Gemini 2.0 Flash'
+      aiUsed = 'Gemini 2.0 Flash (free)'
     } catch (err: any) {
       geminiError = err.message
-      if (shouldFallback(err)) {
+      if (err.fallback) {
         text = await callOpenRouter(base64, mimeType)
-        aiUsed = 'OpenRouter (Gemini fallback)'
+        aiUsed = 'OpenRouter — Gemini 2.0 Flash'
       } else {
-        throw Object.assign(err, { gemini_error: geminiError })
+        throw err
       }
     }
 
     const clean = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean)
-    return NextResponse.json({ 
-      success: true, 
-      data: parsed, 
-      ai_used: aiUsed 
+    return NextResponse.json({
+      success: true,
+      data: parsed,
+      ai_used: aiUsed,
+      ...(geminiError && { gemini_fallback_reason: geminiError })
     })
   } catch (e: any) {
     return NextResponse.json({
