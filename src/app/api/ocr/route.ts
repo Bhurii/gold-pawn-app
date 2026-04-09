@@ -21,8 +21,7 @@ async function callGemini(base64: string, mimeType: string) {
   if (!res.ok) {
     const err = await res.json()
     const msg = err.error?.message || 'Gemini error'
-    const status = res.status
-    throw Object.assign(new Error(msg), { status })
+    throw Object.assign(new Error(msg), { status: res.status })
   }
   const data = await res.json()
   return data.candidates[0].content.parts[0].text
@@ -30,7 +29,7 @@ async function callGemini(base64: string, mimeType: string) {
 
 async function callOpenRouter(base64: string, mimeType: string) {
   const key = process.env.OPENROUTER_API_KEY
-  if (!key) throw new Error('OPENROUTER_API_KEY not set')
+  if (!key) throw new Error('NO_OPENROUTER_KEY')
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -48,7 +47,10 @@ async function callOpenRouter(base64: string, mimeType: string) {
       }]
     })
   })
-  if (!res.ok) throw new Error('OpenRouter error')
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`OpenRouter HTTP ${res.status}: ${errText}`)
+  }
   const data = await res.json()
   return data.choices[0].message.content
 }
@@ -57,34 +59,41 @@ function shouldFallback(err: any): boolean {
   if (err.message === 'NO_GEMINI_KEY') return true
   if (err.status === 429 || err.status === 503) return true
   const msg = err.message?.toLowerCase() || ''
-  if (msg.includes('quota') || msg.includes('exceeded') || msg.includes('limit')) return true
-  return false
+  return msg.includes('quota') || msg.includes('exceeded') || msg.includes('limit')
 }
 
 export async function POST(req: NextRequest) {
+  let aiUsed = 'none'
   try {
     const { base64, mimeType } = await req.json()
     let text: string
-    let usedFallback = false
+    let geminiError = ''
 
     try {
       text = await callGemini(base64, mimeType)
+      aiUsed = 'Gemini 2.0 Flash'
     } catch (err: any) {
+      geminiError = err.message
       if (shouldFallback(err)) {
         text = await callOpenRouter(base64, mimeType)
-        usedFallback = true
+        aiUsed = 'OpenRouter (Gemini fallback)'
       } else {
-        throw err
+        throw Object.assign(err, { gemini_error: geminiError })
       }
     }
 
     const clean = text.replace(/```json|```/g, '').trim()
     const parsed = JSON.parse(clean)
-    return NextResponse.json({ success: true, data: parsed, used_fallback: usedFallback })
+    return NextResponse.json({ 
+      success: true, 
+      data: parsed, 
+      ai_used: aiUsed 
+    })
   } catch (e: any) {
     return NextResponse.json({
       success: false,
       error: e.message,
+      ai_used: aiUsed,
       gemini_key_exists: !!process.env.GEMINI_API_KEY,
       openrouter_key_exists: !!process.env.OPENROUTER_API_KEY
     }, { status: 500 })

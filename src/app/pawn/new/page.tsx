@@ -10,6 +10,8 @@ export default function NewPawn() {
   const [scanning, setScanning] = useState(false)
   const [saving, setSaving] = useState(false)
   const [scanned, setScanned] = useState(false)
+  const [aiUsed, setAiUsed] = useState('')
+  const [ocrError, setOcrError] = useState('')
   const [form, setForm] = useState({ ticket_no: '', pawn_date: '', amount: '' })
 
   function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
@@ -22,6 +24,9 @@ export default function NewPawn() {
 
   async function scanImage(file: File) {
     setScanning(true)
+    setScanned(false)
+    setAiUsed('')
+    setOcrError('')
     try {
       const base64 = await toBase64(file)
       const res = await fetch('/api/ocr', {
@@ -37,9 +42,13 @@ export default function NewPawn() {
           amount: json.data.amount?.toString() || ''
         })
         setScanned(true)
+        setAiUsed(json.ai_used || '')
+      } else {
+        setOcrError(json.error || 'OCR ไม่สำเร็จ')
+        setAiUsed(json.ai_used || '')
       }
     } catch {
-      alert('OCR ไม่สำเร็จ กรุณากรอกข้อมูลเอง')
+      setOcrError('เชื่อมต่อ API ไม่ได้')
     } finally {
       setScanning(false)
     }
@@ -99,11 +108,10 @@ export default function NewPawn() {
         <div style={{ fontSize: 20, fontWeight: 700 }}>บันทึกจำนำ</div>
       </div>
 
-      {/* รูปภาพ */}
       {preview ? (
         <div style={{ marginBottom: 16, position: 'relative' }}>
           <img src={preview} alt="slip" style={{ width: '100%', borderRadius: 16, maxHeight: 260, objectFit: 'contain', background: 'var(--surface)' }} />
-          <button onClick={() => { setPreview(''); setImage(null); setScanned(false) }}
+          <button onClick={() => { setPreview(''); setImage(null); setScanned(false); setAiUsed(''); setOcrError('') }}
             style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: 99, width: 28, height: 28, cursor: 'pointer', fontSize: 14 }}>✕</button>
         </div>
       ) : (
@@ -121,14 +129,24 @@ export default function NewPawn() {
         </div>
       )}
 
+      {/* สถานะ OCR */}
       {scanning && (
-        <div style={{ background: 'rgba(232,197,90,0.1)', border: '0.5px solid var(--border-hover)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, color: 'var(--gold)', fontSize: 13, textAlign: 'center' }}>
-          ⏳ AI กำลังอ่านสลิป...
+        <div style={{ background: 'rgba(232,197,90,0.1)', border: '0.5px solid var(--border-hover)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, fontSize: 13 }}>
+          <div style={{ color: 'var(--gold)', marginBottom: 4 }}>⏳ AI กำลังอ่านสลิป...</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>กำลังลอง Gemini 2.0 Flash ก่อน</div>
         </div>
       )}
       {scanned && !scanning && (
-        <div style={{ background: 'rgba(21,82,40,0.4)', border: '0.5px solid rgba(97,196,89,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, color: '#97C459', fontSize: 13 }}>
-          ✓ AI อ่านสลิปแล้ว — ตรวจสอบข้อมูลด้านล่าง
+        <div style={{ background: 'rgba(21,82,40,0.4)', border: '0.5px solid rgba(97,196,89,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ color: '#97C459', fontSize: 13 }}>✓ อ่านสลิปสำเร็จ — ตรวจสอบข้อมูลด้านล่าง</div>
+          {aiUsed && <div style={{ color: 'rgba(151,196,89,0.6)', fontSize: 11, marginTop: 4 }}>ใช้: {aiUsed}</div>}
+        </div>
+      )}
+      {ocrError && !scanning && (
+        <div style={{ background: 'rgba(162,45,45,0.3)', border: '0.5px solid rgba(240,149,149,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
+          <div style={{ color: '#F09595', fontSize: 13 }}>⚠️ OCR ไม่สำเร็จ — กรุณากรอกเอง</div>
+          <div style={{ color: 'rgba(240,149,149,0.6)', fontSize: 11, marginTop: 4 }}>Error: {ocrError}</div>
+          {aiUsed && <div style={{ color: 'rgba(240,149,149,0.6)', fontSize: 11 }}>ลองใช้: {aiUsed}</div>}
         </div>
       )}
 
