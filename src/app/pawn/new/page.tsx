@@ -49,10 +49,10 @@ export default function NewPawn() {
         setAiUsed(json.ai_used || '')
         if (ticketNo) await checkExisting(ticketNo)
       } else {
-        setOcrError(json.error || 'OCR ไม่สำเร็จ')
+        setOcrError(json.error || 'AI อ่านไม่ได้ กรอกเองได้เลย')
       }
     } catch {
-      setOcrError('เชื่อมต่อ API ไม่ได้')
+      setOcrError('เชื่อมต่อ AI ไม่ได้ กรอกเองได้เลย')
     } finally {
       setScanning(false)
     }
@@ -93,15 +93,16 @@ export default function NewPawn() {
         pawn_date: form.pawn_date,
         amount: parseFloat(form.amount),
         pawn_slip_url: slip_url,
-        status: 'active'
+        status: 'active',
+        tx_status: 'pending_transfer'
       }).select().single()
       if (error) throw error
       await supabase.from('notifications').insert({
         type: 'pawn_created',
-        message: `จำนำตั๋ว #${form.ticket_no} ฿${parseFloat(form.amount).toLocaleString('th-TH')} — รอสลิปโอนเงิน`,
+        message: `มีคนมาขายห่านจ้า! ตั๋ว #${form.ticket_no} ฿${parseFloat(form.amount).toLocaleString('th-TH')} โอนตังเลย`,
         pawn_id: pawn.id
       })
-      alert('บันทึกสำเร็จ!')
+      alert('บันทึกสำเร็จ! รอชาวสวนโอนเงิน')
       router.push(`/pawns/${pawn.id}`)
     } catch (e: any) {
       alert('เกิดข้อผิดพลาด: ' + e.message)
@@ -114,7 +115,17 @@ export default function NewPawn() {
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>บันทึกจำนำ</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>🪺 รับฝากห่าน</div>
+      </div>
+
+      {/* Step indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--gold)' }} />
+        <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--border)' }} />
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>Step 1/2</div>
+      </div>
+      <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
+        เจ้หลุยอัปตั๋ว → AI อ่านข้อมูล → รอชาวสวนโอนเงิน
       </div>
 
       {preview ? (
@@ -140,18 +151,16 @@ export default function NewPawn() {
 
       {scanning && (
         <div style={{ background: 'rgba(242,201,76,0.1)', border: '0.5px solid var(--border-hover)', borderRadius: 14, padding: '14px 16px', marginBottom: 16 }}>
-          <div style={{ color: 'var(--gold)', fontSize: 15 }}>⏳ AI กำลังอ่านสลิป...</div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>กำลังลอง Gemini Flash Lite ก่อน</div>
+          <div style={{ color: 'var(--gold)', fontSize: 15 }}>⏳ AI กำลังอ่านตั๋ว...</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4 }}>ใช้ {aiUsed || 'Gemini Flash Lite'}</div>
         </div>
       )}
 
-      {/* พบในระบบแล้ว */}
       {existingPawn && !scanning && (
         <div style={{ background: 'rgba(242,201,76,0.1)', border: '1px solid rgba(242,201,76,0.4)', borderRadius: 16, padding: 18, marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)', marginBottom: 10 }}>⚠️ ตั๋วนี้มีในระบบแล้ว</div>
-          <div style={{ fontSize: 15, marginBottom: 4 }}>ตั๋ว #{existingPawn.ticket_no}</div>
-          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 4 }}>วันที่: {toThaiDateShort(existingPawn.pawn_date)}</div>
-          <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>ยอด: ฿{fmt(existingPawn.amount)}</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)', marginBottom: 10 }}>⚠️ ห่านตัวนี้มีในระบบแล้ว</div>
+          <div style={{ fontSize: 15, marginBottom: 4 }}>ตั๋ว #{existingPawn.ticket_no} · ฿{fmt(existingPawn.amount)}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>{toThaiDateShort(existingPawn.pawn_date)}</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             <button onClick={() => router.push(`/pawns/${existingPawn.id}`)}
               style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: 'var(--gold)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -159,11 +168,11 @@ export default function NewPawn() {
             </button>
             <button onClick={() => router.push(`/interest?pawn_id=${existingPawn.id}`)}
               style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: '#6fcf6f', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              ✂️ ตัดดอก
+              🥚 เก็บไข่
             </button>
             <button onClick={() => router.push(`/redeem?pawn_id=${existingPawn.id}`)}
               style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: '#f09595', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-              📤 ไถ่ถอน
+              🐣 คืนห่าน
             </button>
           </div>
         </div>
@@ -171,13 +180,14 @@ export default function NewPawn() {
 
       {scanned && !scanning && !existingPawn && (
         <div style={{ background: 'rgba(21,82,40,0.4)', border: '0.5px solid rgba(97,196,89,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ color: '#6fcf6f', fontSize: 14 }}>✓ AI อ่านสลิปแล้ว — ตรวจสอบข้อมูลด้านล่าง</div>
+          <div style={{ color: '#6fcf6f', fontSize: 14 }}>✓ AI อ่านตั๋วแล้ว — ตรวจสอบข้อมูลด้านล่าง</div>
           {aiUsed && <div style={{ color: 'rgba(111,207,111,0.6)', fontSize: 12, marginTop: 4 }}>ใช้: {aiUsed}</div>}
         </div>
       )}
+
       {ocrError && !scanning && (
         <div style={{ background: 'rgba(162,45,45,0.3)', border: '0.5px solid rgba(240,149,149,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ color: '#F09595', fontSize: 14 }}>⚠️ {ocrError} — กรุณากรอกเอง</div>
+          <div style={{ color: '#F09595', fontSize: 14 }}>⚠️ {ocrError}</div>
         </div>
       )}
 
@@ -207,7 +217,7 @@ export default function NewPawn() {
           </div>
           <div style={{ marginTop: 24 }}>
             <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-              {saving ? 'กำลังบันทึก...' : '💾 บันทึกรายการจำนำ'}
+              {saving ? 'กำลังบันทึก...' : '🪺 บันทึกรับฝากห่าน'}
             </button>
           </div>
         </>

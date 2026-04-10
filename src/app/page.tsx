@@ -2,9 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { getSession } from '@/lib/auth'
+import { fmt } from '@/lib/utils'
 
 export default function Dashboard() {
   const router = useRouter()
+  const user = getSession()
   const [budget, setBudget] = useState(0)
   const [activePawns, setActivePawns] = useState(0)
   const [activeAmount, setActiveAmount] = useState(0)
@@ -12,6 +15,8 @@ export default function Dashboard() {
   const [loanAmount, setLoanAmount] = useState(0)
   const [monthInterest, setMonthInterest] = useState(0)
   const [monthCount, setMonthCount] = useState(0)
+  const [pendingPawns, setPendingPawns] = useState<any[]>([])
+  const [pendingRedeems, setPendingRedeems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadDashboard() }, [])
@@ -23,9 +28,13 @@ export default function Dashboard() {
 
       const { data: pawns } = await supabase.from('pawns').select('*').eq('status', 'active')
       if (pawns) {
-        setActivePawns(pawns.length)
-        setActiveAmount(pawns.reduce((s, p) => s + p.amount, 0))
+        setActivePawns(pawns.filter(p => p.tx_status === 'active').length)
+        setActiveAmount(pawns.filter(p => p.tx_status === 'active').reduce((s, p) => s + p.amount, 0))
+        setPendingPawns(pawns.filter(p => p.tx_status === 'pending_transfer'))
       }
+
+      const { data: pendingR } = await supabase.from('redemptions').select('*, pawns(ticket_no, amount)').eq('status', 'pending_confirm')
+      if (pendingR) setPendingRedeems(pendingR)
 
       const { data: loans } = await supabase.from('loans').select('*').eq('status', 'active')
       if (loans) {
@@ -39,10 +48,9 @@ export default function Dashboard() {
       const { data: redemptions } = await supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay)
       const { data: loanTxns } = await supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay)
 
-      let totalInterest = 0
-      let count = 0
+      let totalInterest = 0, count = 0
       if (interests) { totalInterest += interests.reduce((s, i) => s + i.amount, 0); count += interests.length }
-      if (redemptions) { totalInterest += redemptions.reduce((s, r) => s + r.interest_last, 0); count += redemptions.length }
+      if (redemptions) { totalInterest += redemptions.reduce((s, r) => s + (r.interest_last || 0), 0); count += redemptions.length }
       if (loanTxns) { totalInterest += loanTxns.reduce((s, t) => s + t.amount, 0); count += loanTxns.length }
       setMonthInterest(totalInterest)
       setMonthCount(count)
@@ -55,8 +63,7 @@ export default function Dashboard() {
   const remaining = budget - totalInvested
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
-  const user = typeof window !== 'undefined' ? require('@/lib/auth').getSession() : null
-  const fmt = (n: number) => n.toLocaleString('th-TH')
+  const isOwner = user?.role === 'owner'
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>
@@ -66,7 +73,6 @@ export default function Dashboard() {
 
   return (
     <main className="page-container">
-      {/* Header */}
       <div style={{ padding: '56px 0 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -74,15 +80,49 @@ export default function Dashboard() {
             <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)', letterSpacing: -0.5 }}>ห่านทองคำ</div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-            {new Date().toLocaleDateString('th-TH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            สวัสดี {user?.role === 'owner' ? '🌾 ชาวสวน' : '🪿 เจ้หลุย'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
           </div>
         </div>
         <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>⚙️</button>
       </div>
 
+      {/* แจ้งเตือน pending — เฉพาะชาวสวน */}
+      {isOwner && pendingPawns.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          {pendingPawns.map(p => (
+            <div key={p.id} onClick={() => router.push(`/pawns/${p.id}`)}
+              style={{ background: 'rgba(242,201,76,0.12)', border: '1px solid rgba(242,201,76,0.4)', borderRadius: 16, padding: '14px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 26 }}>🪿</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>มีคนมาขายห่านจ้า!</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ตั๋ว #{p.ticket_no} · ฿{fmt(p.amount)} · โอนตังเลย</div>
+              </div>
+              <span style={{ fontSize: 20, color: 'var(--gold)' }}>›</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* แจ้งเตือน pending redeem — เฉพาะชาวสวน */}
+      {isOwner && pendingRedeems.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          {pendingRedeems.map(r => (
+            <div key={r.id} onClick={() => router.push(`/redeem/confirm/${r.id}`)}
+              style={{ background: 'rgba(111,207,111,0.1)', border: '1px solid rgba(111,207,111,0.35)', borderRadius: 16, padding: '14px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 26 }}>🐣</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#6fcf6f' }}>ขายห่านได้แล้ว!</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ตั๋ว #{r.pawns?.ticket_no} · รอยืนยัน</div>
+              </div>
+              <span style={{ fontSize: 20, color: '#6fcf6f' }}>›</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Hero Card */}
       <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 22, padding: 22, marginBottom: 14 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>วงเงินคงเหลือ</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>🌾 ข้าวบาร์เลย์คงเหลือ</div>
         <div style={{ fontSize: 38, fontWeight: 800, color: 'var(--gold)', letterSpacing: -1, marginBottom: 2 }}>฿{fmt(remaining)}</div>
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>จากทั้งหมด ฿{fmt(budget)}</div>
         <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 99, height: 8, marginBottom: 18 }}>
@@ -90,9 +130,9 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
-            { label: 'ตั๋วทอง', value: `${activePawns} ใบ`, href: '/pawns' },
-            { label: 'เงินกู้', value: `${activeLoans} ราย`, href: '/loans' },
-            { label: 'ROI/ปี', value: `${roi}%`, href: '/report' },
+            { label: 'ห่านทองคำ', value: `${activePawns} ตัว`, href: '/pawns' },
+            { label: 'ต้นส้ม', value: `${activeLoans} ต้น`, href: '/loans' },
+            { label: 'ผลผลิต/ปี', value: `${roi}%`, href: '/report' },
           ].map(s => (
             <div key={s.label} onClick={() => router.push(s.href)}
               style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 8px', textAlign: 'center', cursor: 'pointer' }}>
@@ -103,45 +143,45 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ดอกเบี้ยเดือนนี้ */}
+      {/* ไข่เดือนนี้ */}
       <div onClick={() => router.push('/report')} className="card" style={{ marginBottom: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>🥚 ไข่ทองเดือนนี้</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>🥚 ไข่เดือนนี้</div>
           <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(monthInterest)}</div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{monthCount} รายการ</div>
         </div>
         <div style={{ fontSize: 32, color: 'var(--text-muted)' }}>›</div>
       </div>
 
-      {/* เมนูหลัก — ตั๋วทอง */}
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>ตั๋วทอง</div>
+      {/* เมนู ห่านทองคำ */}
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>🪿 ห่านทองคำ</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 16, padding: '16px 12px' }}>📥 จำนำ</button>
-        <button className="btn-secondary" onClick={() => router.push('/redeem')} style={{ fontSize: 16, padding: '16px 12px' }}>📤 ไถ่ถอน</button>
-        <button className="btn-secondary" onClick={() => router.push('/interest')} style={{ fontSize: 16, padding: '16px 12px' }}>✂️ ตัดดอก</button>
-        <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 16, padding: '16px 12px' }}>📋 รายการ</button>
+        <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🪺 รับฝากห่าน</button>
+        <button className="btn-secondary" onClick={() => router.push('/redeem')} style={{ fontSize: 15, padding: '16px 12px' }}>🐣 คืนห่าน</button>
+        <button className="btn-secondary" onClick={() => router.push('/interest')} style={{ fontSize: 15, padding: '16px 12px' }}>🥚 เก็บไข่</button>
+        <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px' }}>📋 ดูฝูงห่าน</button>
       </div>
 
-      {/* เมนูหลัก — เงินกู้ทั่วไป */}
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>เงินกู้ทั่วไป</div>
+      {/* เมนู ทุ่งนา */}
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>🌾 ทุ่งนา</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 16, padding: '16px 12px' }}>💵 ปล่อยกู้ใหม่</button>
-        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 16, padding: '16px 12px' }}>📋 รายการกู้</button>
+        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปลูกต้นส้มใหม่</button>
+        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ดูสวนส้ม</button>
       </div>
 
-      {/* เมนูอื่น */}
+      {/* เมนู อื่นๆ */}
       <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>อื่นๆ</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-secondary" onClick={() => router.push('/other-income')} style={{ fontSize: 16, padding: '16px 12px' }}>💰 รายได้อื่น</button>
-        <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 16, padding: '16px 12px' }}>📊 รายงาน</button>
+        <button className="btn-secondary" onClick={() => router.push('/other-income')} style={{ fontSize: 15, padding: '16px 12px' }}>🌾 เกี่ยวข้าว</button>
+        <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px' }}>📊 ผลผลิต</button>
       </div>
 
       <nav className="bottom-nav">
         {[
           { icon: '🪿', label: 'หน้าแรก', href: '/', active: true },
-          { icon: '📋', label: 'ตั๋วทอง', href: '/pawns' },
-          { icon: '💵', label: 'เงินกู้', href: '/loans' },
-          { icon: '📊', label: 'รายงาน', href: '/report' },
+          { icon: '📋', label: 'ฝูงห่าน', href: '/pawns' },
+          { icon: '🍊', label: 'สวนส้ม', href: '/loans' },
+          { icon: '📊', label: 'ผลผลิต', href: '/report' },
         ].map(n => (
           <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`}>
             <span className="nav-icon">{n.icon}</span>{n.label}

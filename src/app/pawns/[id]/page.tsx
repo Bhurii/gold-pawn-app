@@ -52,6 +52,34 @@ export default function PawnDetail() {
     }
   }
 
+
+  async function confirmTransfer(file: File) {
+    setUploadingPawnSlip(true)
+    try {
+      const path = `transfer/${Date.now()}.${file.name.split('.').pop()}`
+      const { error } = await supabase.storage.from('slips').upload(path, file)
+      if (error) throw error
+      const { data } = supabase.storage.from('slips').getPublicUrl(path)
+      await supabase.from('transfer_slips').insert({
+        pawn_id: id, direction: 'me_to_mom',
+        slip_url: data.publicUrl, amount: pawn?.amount,
+        confirmed_at: new Date().toISOString()
+      })
+      await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+      await supabase.from('notifications').insert({
+        type: 'transfer_confirmed',
+        message: `โอนเงินแล้ว! ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`,
+        pawn_id: id
+      })
+      await loadData()
+      alert('ยืนยันโอนเงินสำเร็จ! ✅')
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } finally {
+      setUploadingPawnSlip(false)
+    }
+  }
+
   async function handleAddSlip() {
     if (!slipImage) { alert('กรุณาเลือกรูปสลิป'); return }
     setSavingSlip(true)
@@ -103,6 +131,37 @@ export default function PawnDetail() {
           {pawn.status === 'active' ? 'จำนำอยู่' : 'ไถ่ถอนแล้ว'}
         </span>
       </div>
+
+
+      {/* Step 2 — ชาวสวนโอนเงิน */}
+      {pawn.tx_status === 'pending_transfer' && (
+        <div style={{ background: 'rgba(242,201,76,0.12)', border: '1px solid rgba(242,201,76,0.5)', borderRadius: 18, padding: 20, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 28 }}>🪿</span>
+            <div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gold)' }}>มีคนมาขายห่านจ้า!</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>โอนเงินให้เจ้หลุยแล้วอัปสลิปด้านล่าง</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+            <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--gold)' }} />
+            <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--border)' }} />
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Step 2/2</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '16px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
+              <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) confirmTransfer(f) }} style={{ display: 'none' }} />
+              <span style={{ fontSize: 28 }}>{uploadingPawnSlip ? '⏳' : '📷'}</span>
+              <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายสลิป</span>
+            </label>
+            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '16px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
+              <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) confirmTransfer(f) }} style={{ display: 'none' }} />
+              <span style={{ fontSize: 28 }}>{uploadingPawnSlip ? '⏳' : '🖼️'}</span>
+              <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
+            </label>
+          </div>
+        </div>
+      )}
 
       {/* ข้อมูลหลัก */}
       <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 20, padding: 20, marginBottom: 16 }}>
