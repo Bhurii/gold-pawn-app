@@ -55,6 +55,7 @@ export default function Dashboard() {
   const remaining = budget - totalInvested
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
+  const user = typeof window !== 'undefined' ? require('@/lib/auth').getSession() : null
   const fmt = (n: number) => n.toLocaleString('th-TH')
 
   if (loading) return (
