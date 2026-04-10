@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
+import NotificationBell from '@/components/NotificationBell'
 
 export default function Dashboard() {
   const router = useRouter()
@@ -83,10 +84,11 @@ export default function Dashboard() {
             สวัสดี {user?.role === 'owner' ? '🌾 ชาวสวน' : '🪿 เจ้หลุย'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
           </div>
         </div>
-        <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>⚙️</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <NotificationBell pendingPawns={pendingPawns} pendingRedeems={pendingRedeems} />
+          <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>⚙️</button>
+        </div>
       </div>
-
-      {/* แจ้งเตือน pending — เฉพาะชาวสวน */}
       {isOwner && pendingPawns.length > 0 && (
         <div style={{ marginBottom: 12 }}>
           {pendingPawns.map(p => (
@@ -102,8 +104,6 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-
-      {/* แจ้งเตือน pending redeem — เฉพาะชาวสวน */}
       {isOwner && pendingRedeems.length > 0 && (
         <div style={{ marginBottom: 12 }}>
           {pendingRedeems.map(r => (

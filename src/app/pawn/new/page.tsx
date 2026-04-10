@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { toThaiDateShort, fmt } from '@/lib/utils'
+import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
 
 export default function NewPawn() {
   const router = useRouter()
@@ -207,7 +207,12 @@ export default function NewPawn() {
               <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่จำนำ</div>
               <input className="input-field" type="date"
                 value={form.pawn_date} onChange={e => setForm({ ...form, pawn_date: e.target.value })} />
-              {form.pawn_date && <div style={{ fontSize: 13, color: 'var(--gold)', marginTop: 6 }}>{toThaiDateShort(form.pawn_date)}</div>}
+              {form.pawn_date && (
+                <div style={{ background: 'rgba(242,201,76,0.12)', border: '0.5px solid var(--border-hover)', borderRadius: 10, padding: '8px 14px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>📅</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>{toThaiDateLong(form.pawn_date)}</span>
+                </div>
+              )}
             </div>
             <div>
               <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>จำนวนเงิน (บาท)</div>
