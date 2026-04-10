@@ -19,6 +19,7 @@ export default function PawnDetail() {
   const [slipDirection, setSlipDirection] = useState<'me_to_mom' | 'mom_to_me'>('me_to_mom')
   const [slipAmount, setSlipAmount] = useState('')
   const [savingSlip, setSavingSlip] = useState(false)
+  const [uploadingPawnSlip, setUploadingPawnSlip] = useState(false)
 
   useEffect(() => { if (id) loadData() }, [id])
 
@@ -32,6 +33,23 @@ export default function PawnDetail() {
     const { data: t } = await supabase.from('transfer_slips').select('*').eq('pawn_id', id).order('created_at')
     if (t) setTransferSlips(t)
     setLoading(false)
+  }
+
+  async function handleUploadPawnSlip(file: File) {
+    setUploadingPawnSlip(true)
+    try {
+      const path = `pawns/${Date.now()}.${file.name.split('.').pop()}`
+      const { error } = await supabase.storage.from('slips').upload(path, file)
+      if (error) throw error
+      const { data } = supabase.storage.from('slips').getPublicUrl(path)
+      await supabase.from('pawns').update({ pawn_slip_url: data.publicUrl }).eq('id', id)
+      await loadData()
+      alert('อัปรูปตั๋วสำเร็จ!')
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } finally {
+      setUploadingPawnSlip(false)
+    }
   }
 
   async function handleAddSlip() {
@@ -63,35 +81,23 @@ export default function PawnDetail() {
     }
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>
-      กำลังโหลด...
-    </div>
-  )
-  if (!pawn) return (
-    <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>ไม่พบข้อมูล</div>
-  )
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
+  if (!pawn) return <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>ไม่พบข้อมูล</div>
 
   const totalInterest = interests.reduce((s, i) => s + i.amount, 0)
 
   return (
     <main className="page-container">
-
-      {/* Full screen viewer */}
       {viewImg && (
-        <div onClick={() => setViewImg('')}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.97)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <img src={viewImg} alt="preview"
-            style={{ maxWidth: '100%', maxHeight: '90dvh', borderRadius: 12, objectFit: 'contain' }} />
-          <button onClick={() => setViewImg('')}
-            style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 99, width: 44, height: 44, fontSize: 22, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        <div onClick={() => setViewImg('')} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.97)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <img src={viewImg} alt="preview" style={{ maxWidth: '100%', maxHeight: '90dvh', borderRadius: 12, objectFit: 'contain' }} />
+          <button onClick={() => setViewImg('')} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 99, width: 44, height: 44, fontSize: 22, cursor: 'pointer' }}>✕</button>
           <div style={{ position: 'absolute', bottom: 24, color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>แตะที่ใดก็ได้เพื่อปิด</div>
         </div>
       )}
 
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.back()}
-          style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
         <div style={{ fontSize: 22, fontWeight: 800 }}>ตั๋ว #{pawn.ticket_no}</div>
         <span className={pawn.status === 'active' ? 'badge-active' : 'badge-redeemed'} style={{ marginLeft: 'auto' }}>
           {pawn.status === 'active' ? 'จำนำอยู่' : 'ไถ่ถอนแล้ว'}
@@ -119,14 +125,32 @@ export default function PawnDetail() {
         {pawn.pawn_slip_url ? (
           <div onClick={() => setViewImg(pawn.pawn_slip_url)} style={{ cursor: 'pointer', position: 'relative' }}>
             <img src={pawn.pawn_slip_url} alt="pawn slip"
-              style={{ width: '100%', borderRadius: 12, maxHeight: 220, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} />
-            <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 10px', fontSize: 12, color: '#fff' }}>
-              แตะเพื่อขยาย 🔍
+              style={{ width: '100%', borderRadius: 12, maxHeight: 240, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} />
+            <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 10px', fontSize: 13, color: '#fff' }}>
+              🔍 แตะเพื่อขยาย
             </div>
           </div>
         ) : (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px 0', fontSize: 15 }}>
-            ยังไม่มีรูปตั๋ว
+          <div>
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '12px 0 16px', fontSize: 15 }}>
+              ยังไม่มีรูปตั๋ว
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-700)' }}>
+                <input type="file" accept="image/*" capture="environment"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadPawnSlip(f) }}
+                  style={{ display: 'none' }} />
+                <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '📷'}</span>
+                <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-700)' }}>
+                <input type="file" accept="image/*"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadPawnSlip(f) }}
+                  style={{ display: 'none' }} />
+                <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '🖼️'}</span>
+                <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
+              </label>
+            </div>
           </div>
         )}
       </div>
@@ -143,7 +167,6 @@ export default function PawnDetail() {
           )}
         </div>
 
-        {/* ฟอร์มเพิ่มสลิป */}
         {showAddSlip && (
           <div style={{ background: 'var(--black-700)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>เพิ่มสลิปโอนเงิน</div>
@@ -156,8 +179,7 @@ export default function PawnDetail() {
               ))}
             </div>
             <input className="input-field" type="number" placeholder="จำนวนเงิน (บาท)"
-              value={slipAmount} onChange={e => setSlipAmount(e.target.value)}
-              style={{ marginBottom: 12 }} />
+              value={slipAmount} onChange={e => setSlipAmount(e.target.value)} style={{ marginBottom: 12 }} />
             {slipPreview ? (
               <div style={{ position: 'relative', marginBottom: 12 }}>
                 <img src={slipPreview} onClick={() => setViewImg(slipPreview)}
@@ -188,11 +210,8 @@ export default function PawnDetail() {
           </div>
         )}
 
-        {/* รายการสลิป */}
         {transferSlips.length === 0 && !showAddSlip ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: 15, textAlign: 'center', padding: '8px 0' }}>
-            ยังไม่มีสลิปโอนเงิน
-          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 15, textAlign: 'center', padding: '8px 0' }}>ยังไม่มีสลิปโอนเงิน</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {transferSlips.map(t => (
@@ -201,7 +220,7 @@ export default function PawnDetail() {
                   <div onClick={() => setViewImg(t.slip_url)} style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
                     <img src={t.slip_url} alt="transfer slip"
                       style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', background: 'var(--black-700)', display: 'block' }} />
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🔍</div>
+                    <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🔍</div>
                   </div>
                 ) : (
                   <div style={{ width: 72, height: 72, borderRadius: 10, background: 'var(--black-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>💸</div>
@@ -242,7 +261,7 @@ export default function PawnDetail() {
                   <div onClick={() => setViewImg(int.slip_url)} style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
                     <img src={int.slip_url} alt="interest slip"
                       style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', background: 'var(--black-700)', display: 'block' }} />
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: 8, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🔍</div>
+                    <div style={{ position: 'absolute', inset: 0, borderRadius: 8, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🔍</div>
                   </div>
                 ) : (
                   <div style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--black-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>✂️</div>

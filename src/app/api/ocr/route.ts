@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-async function resizeBase64(base64: string, mimeType: string): Promise<string> {
-  return base64
-}
+const PROMPT = `อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด
+วันที่ในตั๋วอาจเขียนแบบย่อด้วยลายมือ เช่น "31 มีค 69" หมายถึง 31 มีนาคม 2569 (พ.ศ.)
+ให้แปลงวันที่เป็น ค.ศ. รูปแบบ YYYY-MM-DD เสมอ เช่น 31 มีค 69 = 2026-03-31
+ตัวเลขปีในตั๋วถ้าเป็น 2 หลัก เช่น 69 = พ.ศ. 2569 = ค.ศ. 2026
+ตัวเลขปีในตั๋วถ้าเป็น 4 หลัก เช่น 2569 = พ.ศ. 2569 = ค.ศ. 2026
+
+ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:
+{"ticket_no":"เลขที่ตั๋ว","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}`
 
 async function callGemini(base64: string, mimeType: string) {
   const key = process.env.GEMINI_API_KEY
@@ -13,12 +18,7 @@ async function callGemini(base64: string, mimeType: string) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: 'อ่านสลิปตั๋วจำนำทอง ตอบ JSON เท่านั้น:\n{"ticket_no":"","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
-          ]
-        }],
+        contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: base64 } }, { text: PROMPT }] }],
         generationConfig: { maxOutputTokens: 256 }
       })
     }
@@ -49,13 +49,7 @@ async function callOpenRouter(base64: string, mimeType: string) {
     body: JSON.stringify({
       model: 'google/gemini-2.0-flash-lite-001',
       max_tokens: 256,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-          { type: 'text', text: 'อ่านสลิปตั๋วจำนำทอง ตอบ JSON เท่านั้น:\n{"ticket_no":"","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}' }
-        ]
-      }]
+      messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }, { type: 'text', text: PROMPT }] }]
     })
   })
   if (!res.ok) {
