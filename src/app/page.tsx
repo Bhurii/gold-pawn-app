@@ -89,7 +89,6 @@ export default function Dashboard() {
           <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>⚙️</button>
         </div>
       </div>
-      )}
 
       {/* Hero Card */}
       <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 22, padding: 22, marginBottom: 14 }}>
