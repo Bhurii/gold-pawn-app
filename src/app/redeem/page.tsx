@@ -1,4 +1,5 @@
 'use client'
+import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -200,7 +201,6 @@ function RedeemContent() {
       <input className="input-field" type="date"
         value={form.redeem_date} onChange={e => setForm({ ...form, redeem_date: e.target.value })}
         style={{ marginBottom: 16 }} />
-      {form.redeem_date && <div style={{ fontSize: 13, color: 'var(--gold)', marginBottom: 16 }}>{toThaiDateShort(form.redeem_date)}</div>}
 
       {/* สรุปไข่ */}
       <div style={{ background: '#0A0A0A', border: '1px solid rgba(242,201,76,0.2)', borderRadius: 16, padding: 18, marginBottom: 20 }}>

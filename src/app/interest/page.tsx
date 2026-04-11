@@ -1,4 +1,5 @@
 'use client'
+import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
@@ -103,7 +104,6 @@ function InterestContent() {
             <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่ตัดดอก</div>
             <input className="input-field" type="date"
               value={form.payment_date} onChange={e => setForm({ ...form, payment_date: e.target.value })} />
-            {form.payment_date && <div style={{ fontSize: 13, color: 'var(--gold)', marginTop: 6 }}>{toThaiDateShort(form.payment_date)}</div>}
           </div>
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>สลิปโอนเงิน</div>
