@@ -101,17 +101,11 @@ export default function Settings() {
       </button>
 
       
-            <nav className="bottom-nav">
-        {[
-          { icon: '🪿', label: 'หน้าแรก', href: '/' },
-          { icon: '📋', label: 'ฝูงห่าน', href: '/pawns' },
-          { icon: '🍊', label: 'สวนส้ม', href: '/loans' },
-          { icon: '📊', label: 'ผลผลิต', href: '/settings', active: true },
-        ].map(n => (
-          <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`}>
-            <span className="nav-icon">{n.icon}</span>{n.label}
-          </a>
-        ))}
+                  <nav className="bottom-nav">
+        <a href="/" className="nav-item"><span className="nav-icon">🪿</span>หน้าแรก</a>
+        <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
+        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
+        <a href="/report" className="nav-item active"><span className="nav-icon">📊</span>ผลผลิต</a>
       </nav>
       <div style={{ height: 32 }} />
     </main>
