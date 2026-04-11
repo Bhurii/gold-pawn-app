@@ -140,25 +140,57 @@ export default function PawnDetail() {
             <span style={{ fontSize: 28 }}>🪿</span>
             <div>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gold)' }}>มีคนมาขายห่านจ้า!</div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>โอนเงินให้เจ้หลุยแล้วอัปสลิปด้านล่าง</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>เลือกวิธีจัดการการโอนเงิน</div>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--gold)' }} />
             <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--border)' }} />
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Step 2/2</div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '16px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
+
+          {/* ปุ่มอัปสลิป */}
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}>📎 มีสลิปโอนเงิน</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
               <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) confirmTransfer(f) }} style={{ display: 'none' }} />
-              <span style={{ fontSize: 28 }}>{uploadingPawnSlip ? '⏳' : '📷'}</span>
+              <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '📷'}</span>
               <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายสลิป</span>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '16px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
               <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) confirmTransfer(f) }} style={{ display: 'none' }} />
-              <span style={{ fontSize: 28 }}>{uploadingPawnSlip ? '⏳' : '🖼️'}</span>
+              <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '🖼️'}</span>
               <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
             </label>
+          </div>
+
+          {/* ปุ่ม bypass */}
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}>💰 ไม่มีสลิป</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <button onClick={async () => {
+              if (!confirm('ยืนยันว่าโอนเงินสดให้เจ้หลุยแล้ว?')) return
+              setUploadingPawnSlip(true)
+              await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+              await supabase.from('notifications').insert({ type: 'bypass_cash', message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`, pawn_id: String(id) })
+              await loadData()
+              setUploadingPawnSlip(false)
+              alert('เคลียร์แล้ว ✅')
+            }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1px solid rgba(111,207,111,0.4)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'rgba(111,207,111,0.08)' }}>
+              <span style={{ fontSize: 26 }}>💵</span>
+              <span style={{ color: '#6fcf6f', fontSize: 13, fontWeight: 600 }}>เคลียร์เงินสด</span>
+            </button>
+            <button onClick={async () => {
+              if (!confirm('ยืนยันว่าฝากเงินไว้ล่วงหน้าแล้ว?')) return
+              setUploadingPawnSlip(true)
+              await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+              await supabase.from('notifications').insert({ type: 'bypass_prepaid', message: `ฝากเงินไว้ล่วงหน้าแล้ว ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`, pawn_id: String(id) })
+              await loadData()
+              setUploadingPawnSlip(false)
+              alert('บันทึกแล้ว ✅')
+            }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1px solid rgba(242,201,76,0.3)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'rgba(242,201,76,0.06)' }}>
+              <span style={{ fontSize: 26 }}>🤝</span>
+              <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ฝากไว้ล่วงหน้า</span>
+            </button>
           </div>
         </div>
       )}
