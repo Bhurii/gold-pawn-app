@@ -2,30 +2,35 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
+import { toThaiDateLong, fmt } from '@/lib/utils'
+import { getSession } from '@/lib/auth'
+import PawnChecklist from '@/components/PawnChecklist'
 
 export default function PawnDetail() {
   const router = useRouter()
   const { id } = useParams()
+  const user = getSession()
+  const isOwner = user?.role === 'owner'
   const [pawn, setPawn] = useState<any>(null)
   const [interests, setInterests] = useState<any[]>([])
   const [redemption, setRedemption] = useState<any>(null)
   const [transferSlips, setTransferSlips] = useState<any[]>([])
+  const [renewedFrom, setRenewedFrom] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [viewImg, setViewImg] = useState('')
-  const [showAddSlip, setShowAddSlip] = useState(false)
-  const [slipImage, setSlipImage] = useState<File | null>(null)
-  const [slipPreview, setSlipPreview] = useState('')
-  const [slipDirection, setSlipDirection] = useState<'me_to_mom' | 'mom_to_me'>('me_to_mom')
-  const [slipAmount, setSlipAmount] = useState('')
-  const [savingSlip, setSavingSlip] = useState(false)
   const [uploadingPawnSlip, setUploadingPawnSlip] = useState(false)
 
   useEffect(() => { if (id) loadData() }, [id])
 
   async function loadData() {
     const { data: p } = await supabase.from('pawns').select('*').eq('id', id).single()
-    if (p) setPawn(p)
+    if (p) {
+      setPawn(p)
+      if (p.renewed_from_id) {
+        const { data: prev } = await supabase.from('pawns').select('ticket_no,amount,pawn_date').eq('id', p.renewed_from_id).single()
+        if (prev) setRenewedFrom(prev)
+      }
+    }
     const { data: i } = await supabase.from('interest_payments').select('*').eq('pawn_id', id).order('payment_date')
     if (i) setInterests(i)
     const { data: r } = await supabase.from('redemptions').select('*').eq('pawn_id', id).single()
@@ -35,24 +40,6 @@ export default function PawnDetail() {
     setLoading(false)
   }
 
-  async function handleUploadPawnSlip(file: File) {
-    setUploadingPawnSlip(true)
-    try {
-      const path = `pawns/${Date.now()}.${file.name.split('.').pop()}`
-      const { error } = await supabase.storage.from('slips').upload(path, file)
-      if (error) throw error
-      const { data } = supabase.storage.from('slips').getPublicUrl(path)
-      await supabase.from('pawns').update({ pawn_slip_url: data.publicUrl }).eq('id', id)
-      await loadData()
-      alert('อัปรูปตั๋วสำเร็จ!')
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
-    } finally {
-      setUploadingPawnSlip(false)
-    }
-  }
-
-
   async function confirmTransfer(file: File) {
     setUploadingPawnSlip(true)
     try {
@@ -60,67 +47,45 @@ export default function PawnDetail() {
       const { error } = await supabase.storage.from('slips').upload(path, file)
       if (error) throw error
       const { data } = supabase.storage.from('slips').getPublicUrl(path)
-      await supabase.from('transfer_slips').insert({
-        pawn_id: id, direction: 'me_to_mom',
-        slip_url: data.publicUrl, amount: pawn?.amount,
-        confirmed_at: new Date().toISOString()
-      })
+      await supabase.from('transfer_slips').insert({ pawn_id: id, direction: 'me_to_mom', slip_url: data.publicUrl, amount: pawn?.amount, confirmed_at: new Date().toISOString() })
       await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
-      await supabase.from('notifications').insert({
-        type: 'transfer_confirmed',
-        message: `โอนเงินแล้ว! ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`,
-        pawn_id: id
-      })
+      await supabase.from('notifications').insert({ type: 'transfer_confirmed', message: `โอนเงินแล้ว! ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`, pawn_id: String(id) })
       await loadData()
-      alert('ยืนยันโอนเงินสำเร็จ! ✅')
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
-    } finally {
-      setUploadingPawnSlip(false)
-    }
+      alert('บันทึกสำเร็จ ✅')
+    } catch (e: any) { alert('เกิดข้อผิดพลาด: ' + e.message) }
+    finally { setUploadingPawnSlip(false) }
   }
 
-  async function handleAddSlip() {
-    if (!slipImage) { alert('กรุณาเลือกรูปสลิป'); return }
-    setSavingSlip(true)
-    try {
-      const path = `transfer/${Date.now()}.${slipImage.name.split('.').pop()}`
-      const { error: uploadError } = await supabase.storage.from('slips').upload(path, slipImage)
-      if (uploadError) throw uploadError
-      const { data: urlData } = supabase.storage.from('slips').getPublicUrl(path)
-      const { error: insertError } = await supabase.from('transfer_slips').insert({
-        pawn_id: id,
-        direction: slipDirection,
-        slip_url: urlData.publicUrl,
-        amount: slipAmount ? parseFloat(slipAmount) : null,
-        confirmed_at: new Date().toISOString()
-      })
-      if (insertError) throw insertError
-      setShowAddSlip(false)
-      setSlipImage(null)
-      setSlipPreview('')
-      setSlipAmount('')
-      await loadData()
-      alert('บันทึกสลิปสำเร็จ!')
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
-    } finally {
-      setSavingSlip(false)
-    }
+  async function handleBypassCash() {
+    if (!confirm('ยืนยันว่าโอนเงินสดให้เจ้หลุยแล้ว?')) return
+    setUploadingPawnSlip(true)
+    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+    await supabase.from('notifications').insert({ type: 'bypass_cash', message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn?.ticket_no}`, pawn_id: String(id) })
+    await loadData()
+    setUploadingPawnSlip(false)
+    alert('เคลียร์แล้ว ✅')
+  }
+
+  async function handleBypassPrepaid() {
+    if (!confirm('ยืนยันว่าฝากเงินไว้ล่วงหน้าแล้ว?')) return
+    setUploadingPawnSlip(true)
+    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+    await supabase.from('notifications').insert({ type: 'bypass_prepaid', message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn?.ticket_no}`, pawn_id: String(id) })
+    await loadData()
+    setUploadingPawnSlip(false)
+    alert('บันทึกแล้ว ✅')
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
   if (!pawn) return <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>ไม่พบข้อมูล</div>
 
-  const totalInterest = interests.reduce((s, i) => s + i.amount, 0)
-
   return (
     <main className="page-container">
       {viewImg && (
         <div onClick={() => setViewImg('')} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.97)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <img src={viewImg} alt="preview" style={{ maxWidth: '100%', maxHeight: '90dvh', borderRadius: 12, objectFit: 'contain' }} />
+          <img src={viewImg} loading="lazy" style={{ maxWidth: '100%', maxHeight: '90dvh', borderRadius: 12, objectFit: 'contain' }} alt="preview" />
           <button onClick={() => setViewImg('')} style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 99, width: 44, height: 44, fontSize: 22, cursor: 'pointer' }}>✕</button>
-          <div style={{ position: 'absolute', bottom: 24, color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>แตะที่ใดก็ได้เพื่อปิด</div>
+          <div style={{ position: 'absolute', bottom: 24, color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>แตะเพื่อปิด</div>
         </div>
       )}
 
@@ -132,66 +97,16 @@ export default function PawnDetail() {
         </span>
       </div>
 
-
-      {/* Step 2 — ชาวสวนโอนเงิน */}
-      {pawn.tx_status === 'pending_transfer' && (
-        <div style={{ background: 'rgba(242,201,76,0.12)', border: '1px solid rgba(242,201,76,0.5)', borderRadius: 18, padding: 20, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-            <span style={{ fontSize: 28 }}>🪿</span>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gold)' }}>มีคนมาขายห่านจ้า!</div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>เลือกวิธีจัดการการโอนเงิน</div>
-            </div>
+      {/* ต่อจากตั๋วเดิม */}
+      {renewedFrom && (
+        <div onClick={() => router.push(`/pawns/${pawn.renewed_from_id}`)}
+          style={{ background: 'rgba(133,183,235,0.1)', border: '1px solid rgba(133,183,235,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>🔗</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: 'rgba(133,183,235,0.8)', fontWeight: 600 }}>ลดต้นจากตั๋ว #{renewedFrom.ticket_no}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ต้นเดิม ฿{fmt(renewedFrom.amount)} · ตัดต้น ฿{fmt(pawn.renewal_principal_paid)}</div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--gold)' }} />
-            <div style={{ flex: 1, height: 4, borderRadius: 99, background: 'var(--border)' }} />
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Step 2/2</div>
-          </div>
-
-          {/* ปุ่มอัปสลิป */}
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}>📎 มีสลิปโอนเงิน</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
-              <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) confirmTransfer(f) }} style={{ display: 'none' }} />
-              <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '📷'}</span>
-              <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายสลิป</span>
-            </label>
-            <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
-              <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) confirmTransfer(f) }} style={{ display: 'none' }} />
-              <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '🖼️'}</span>
-              <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
-            </label>
-          </div>
-
-          {/* ปุ่ม bypass */}
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 8 }}>💰 ไม่มีสลิป</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <button onClick={async () => {
-              if (!confirm('ยืนยันว่าโอนเงินสดให้เจ้หลุยแล้ว?')) return
-              setUploadingPawnSlip(true)
-              await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
-              await supabase.from('notifications').insert({ type: 'bypass_cash', message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`, pawn_id: String(id) })
-              await loadData()
-              setUploadingPawnSlip(false)
-              alert('เคลียร์แล้ว ✅')
-            }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1px solid rgba(111,207,111,0.4)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'rgba(111,207,111,0.08)' }}>
-              <span style={{ fontSize: 26 }}>💵</span>
-              <span style={{ color: '#6fcf6f', fontSize: 13, fontWeight: 600 }}>เคลียร์เงินสด</span>
-            </button>
-            <button onClick={async () => {
-              if (!confirm('ยืนยันว่าฝากเงินไว้ล่วงหน้าแล้ว?')) return
-              setUploadingPawnSlip(true)
-              await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
-              await supabase.from('notifications').insert({ type: 'bypass_prepaid', message: `ฝากเงินไว้ล่วงหน้าแล้ว ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`, pawn_id: String(id) })
-              await loadData()
-              setUploadingPawnSlip(false)
-              alert('บันทึกแล้ว ✅')
-            }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1px solid rgba(242,201,76,0.3)', borderRadius: 14, padding: '14px 8px', cursor: 'pointer', background: 'rgba(242,201,76,0.06)' }}>
-              <span style={{ fontSize: 26 }}>🤝</span>
-              <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ฝากไว้ล่วงหน้า</span>
-            </button>
-          </div>
+          <span style={{ fontSize: 16, color: 'rgba(133,183,235,0.7)' }}>›</span>
         </div>
       )}
 
@@ -207,213 +122,30 @@ export default function PawnDetail() {
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(pawn.amount)}</div>
           </div>
         </div>
-        {pawn.notes && <div style={{ marginTop: 12, fontSize: 14, color: 'var(--text-secondary)' }}>{pawn.notes}</div>}
+        {pawn.notes && <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)' }}>{pawn.notes}</div>}
       </div>
 
-      {/* รูปตั๋วจำนำ */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>📄 ตั๋วจำนำ</div>
-        {pawn.pawn_slip_url ? (
-          <div onClick={() => setViewImg(pawn.pawn_slip_url)} style={{ cursor: 'pointer', position: 'relative' }}>
-            <img src={pawn.pawn_slip_url} alt="pawn slip"
-              style={{ width: '100%', borderRadius: 12, maxHeight: 240, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} />
-            <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '4px 10px', fontSize: 13, color: '#fff' }}>
-              🔍 แตะเพื่อขยาย
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '12px 0 16px', fontSize: 15 }}>
-              ยังไม่มีรูปตั๋ว
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-700)' }}>
-                <input type="file" accept="image/*" capture="environment"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadPawnSlip(f) }}
-                  style={{ display: 'none' }} />
-                <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '📷'}</span>
-                <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
-              </label>
-              <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-700)' }}>
-                <input type="file" accept="image/*"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadPawnSlip(f) }}
-                  style={{ display: 'none' }} />
-                <span style={{ fontSize: 26 }}>{uploadingPawnSlip ? '⏳' : '🖼️'}</span>
-                <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
-              </label>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Checklist ยุบ/ขยาย */}
+      <PawnChecklist
+        pawn={pawn}
+        transferSlips={transferSlips}
+        interests={interests}
+        redemption={redemption}
+        onViewImg={setViewImg}
+        onConfirmTransfer={confirmTransfer}
+        onBypassCash={handleBypassCash}
+        onBypassPrepaid={handleBypassPrepaid}
+        uploadingPawnSlip={uploadingPawnSlip}
+        isOwner={isOwner}
+      />
 
-      {/* สลิปโอนเงิน */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>💸 สลิปโอนเงิน</div>
-          {!showAddSlip && (
-            <button onClick={() => setShowAddSlip(true)}
-              style={{ background: 'linear-gradient(135deg,#C9922A,#F2C94C)', color: '#080808', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              + เพิ่มสลิป
-            </button>
-          )}
+      {/* ปุ่ม Action */}
+      {pawn.status === 'active' && pawn.tx_status === 'active' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button onClick={() => router.push(`/interest?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>🥚 เก็บไข่ (ตัดดอก)</button>
+          <button onClick={() => router.push(`/renew?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>📋 ลดต้น (ออกตั๋วใหม่)</button>
+          <button onClick={() => router.push(`/redeem?pawn_id=${id}`)} className="btn-primary" style={{ fontSize: 17 }}>🐣 คืนห่าน (ไถ่ถอน)</button>
         </div>
-
-        {showAddSlip && (
-          <div style={{ background: 'var(--black-700)', borderRadius: 14, padding: 16, marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>เพิ่มสลิปโอนเงิน</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-              {(['me_to_mom', 'mom_to_me'] as const).map(d => (
-                <button key={d} onClick={() => setSlipDirection(d)}
-                  style={{ padding: '12px 8px', borderRadius: 12, border: '1px solid', cursor: 'pointer', fontSize: 14, fontWeight: 600, borderColor: slipDirection === d ? 'var(--gold)' : 'var(--border)', background: slipDirection === d ? 'rgba(242,201,76,0.15)' : 'transparent', color: slipDirection === d ? 'var(--gold)' : 'var(--text-muted)' }}>
-                  {d === 'me_to_mom' ? '💸 ฉันโอนให้แม่' : '💰 แม่โอนให้ฉัน'}
-                </button>
-              ))}
-            </div>
-            <input className="input-field" type="number" placeholder="จำนวนเงิน (บาท)"
-              value={slipAmount} onChange={e => setSlipAmount(e.target.value)} style={{ marginBottom: 12 }} />
-            {slipPreview ? (
-              <div style={{ position: 'relative', marginBottom: 12 }}>
-                <img src={slipPreview} onClick={() => setViewImg(slipPreview)}
-                  style={{ width: '100%', borderRadius: 12, maxHeight: 180, objectFit: 'contain', background: 'var(--black-800)', cursor: 'pointer', display: 'block' }} alt="preview" />
-                <button onClick={() => { setSlipPreview(''); setSlipImage(null) }}
-                  style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 32, height: 32, cursor: 'pointer', fontSize: 16 }}>✕</button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-                <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                  <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) { setSlipImage(f); setSlipPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
-                  <span style={{ fontSize: 26 }}>📷</span>
-                  <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
-                </label>
-                <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '14px 8px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                  <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) { setSlipImage(f); setSlipPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
-                  <span style={{ fontSize: 26 }}>🖼️</span>
-                  <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
-                </label>
-              </div>
-            )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button className="btn-secondary" onClick={() => { setShowAddSlip(false); setSlipPreview(''); setSlipImage(null) }} style={{ fontSize: 15 }}>ยกเลิก</button>
-              <button className="btn-primary" onClick={handleAddSlip} disabled={savingSlip} style={{ fontSize: 15 }}>
-                {savingSlip ? 'กำลังบันทึก...' : 'บันทึก'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {transferSlips.length === 0 && !showAddSlip ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: 15, textAlign: 'center', padding: '8px 0' }}>ยังไม่มีสลิปโอนเงิน</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {transferSlips.map(t => (
-              <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 0' }}>
-                {t.slip_url ? (
-                  <div onClick={() => setViewImg(t.slip_url)} style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
-                    <img src={t.slip_url} alt="transfer slip"
-                      style={{ width: 72, height: 72, borderRadius: 10, objectFit: 'cover', background: 'var(--black-700)', display: 'block' }} />
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>🔍</div>
-                  </div>
-                ) : (
-                  <div style={{ width: 72, height: 72, borderRadius: 10, background: 'var(--black-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, flexShrink: 0 }}>💸</div>
-                )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>
-                    {t.direction === 'me_to_mom' ? '💸 ฉันโอนให้แม่' : '💰 แม่โอนให้ฉัน'}
-                  </div>
-                  {t.amount && <div style={{ fontSize: 17, color: 'var(--gold)', fontWeight: 700 }}>฿{fmt(t.amount)}</div>}
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {toThaiDateShort(t.created_at?.split('T')[0])}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ประวัติตัดดอก */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 700 }}>✂️ ประวัติตัดดอก</div>
-          {pawn.status === 'active' && (
-            <button onClick={() => router.push(`/interest?pawn_id=${id}`)}
-              style={{ background: 'linear-gradient(135deg,#C9922A,#F2C94C)', color: '#080808', border: 'none', borderRadius: 10, padding: '8px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              + ตัดดอก
-            </button>
-          )}
-        </div>
-        {interests.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: 15, textAlign: 'center', padding: '8px 0' }}>ยังไม่มีการตัดดอก</div>
-        ) : (
-          <>
-            {interests.map((int, i) => (
-              <div key={int.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: i < interests.length - 1 ? '0.5px solid var(--border)' : 'none' }}>
-                {int.slip_url ? (
-                  <div onClick={() => setViewImg(int.slip_url)} style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}>
-                    <img src={int.slip_url} alt="interest slip"
-                      style={{ width: 56, height: 56, borderRadius: 8, objectFit: 'cover', background: 'var(--black-700)', display: 'block' }} />
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: 8, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🔍</div>
-                  </div>
-                ) : (
-                  <div style={{ width: 56, height: 56, borderRadius: 8, background: 'var(--black-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>✂️</div>
-                )}
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 600 }}>ครั้งที่ {i + 1}</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateLong(int.payment_date)}</div>
-                  {int.note && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{int.note}</div>}
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: '#6fcf6f' }}>+฿{fmt(int.amount)}</div>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid rgba(242,201,76,0.2)', marginTop: 4 }}>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>ดอกรวมที่ตัดแล้ว</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(totalInterest)}</div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* ข้อมูลไถ่ถอน */}
-      {redemption && (
-        <div className="card" style={{ marginBottom: 16, border: '1px solid rgba(240,149,149,0.3)' }}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14, color: '#f09595' }}>📤 ข้อมูลไถ่ถอน</div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: 15 }}>วันที่ไถ่ถอน</span>
-            <span style={{ fontSize: 15, fontWeight: 600 }}>{toThaiDateLong(redemption.redeem_date)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: 15 }}>ดอกเบี้ยรวม</span>
-            <span style={{ fontSize: 16, fontWeight: 700, color: '#6fcf6f' }}>+฿{fmt(redemption.interest_total)}</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {redemption.pawn_slip_url && (
-              <div onClick={() => setViewImg(redemption.pawn_slip_url)} style={{ cursor: 'pointer' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>ตั๋วไถ่ถอน</div>
-                <div style={{ position: 'relative' }}>
-                  <img src={redemption.pawn_slip_url} alt="redeem pawn"
-                    style={{ width: '100%', height: 90, borderRadius: 10, objectFit: 'cover', background: 'var(--black-700)', display: 'block' }} />
-                  <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔍</div>
-                </div>
-              </div>
-            )}
-            {redemption.transfer_slip_url && (
-              <div onClick={() => setViewImg(redemption.transfer_slip_url)} style={{ cursor: 'pointer' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>สลิปโอนเงิน</div>
-                <div style={{ position: 'relative' }}>
-                  <img src={redemption.transfer_slip_url} alt="redeem transfer"
-                    style={{ width: '100%', height: 90, borderRadius: 10, objectFit: 'cover', background: 'var(--black-700)', display: 'block' }} />
-                  <div style={{ position: 'absolute', inset: 0, borderRadius: 10, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>🔍</div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {pawn.status === 'active' && (
-        <button className="btn-primary" onClick={() => router.push(`/redeem?pawn_id=${id}`)} style={{ fontSize: 18 }}>
-          📤 ไถ่ถอนตั๋วนี้
-        </button>
       )}
       <div style={{ height: 32 }} />
     </main>
