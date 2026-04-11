@@ -1,11 +1,11 @@
 {
-  "name": "ทองจำนำ",
-  "short_name": "ทองจำนำ",
+  "name": "ห่านทองคำ",
+  "short_name": "ห่านทองคำ",
   "description": "ระบบดูแลการลงทุนรับจำนำทอง",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#030F08",
-  "theme_color": "#030F08",
+  "background_color": "#080808",
+  "theme_color": "#080808",
   "orientation": "portrait",
   "icons": [
     {
