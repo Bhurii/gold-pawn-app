@@ -89,35 +89,6 @@ export default function Dashboard() {
           <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>⚙️</button>
         </div>
       </div>
-      {isOwner && pendingPawns.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          {pendingPawns.map(p => (
-            <div key={p.id} onClick={() => router.push(`/pawns/${p.id}`)}
-              style={{ background: 'rgba(242,201,76,0.12)', border: '1px solid rgba(242,201,76,0.4)', borderRadius: 16, padding: '14px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 26 }}>🪿</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>มีคนมาขายห่านจ้า!</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ตั๋ว #{p.ticket_no} · ฿{fmt(p.amount)} · โอนตังเลย</div>
-              </div>
-              <span style={{ fontSize: 20, color: 'var(--gold)' }}>›</span>
-            </div>
-          ))}
-        </div>
-      )}
-      {isOwner && pendingRedeems.length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          {pendingRedeems.map(r => (
-            <div key={r.id} onClick={() => router.push(`/redeem/confirm/${r.id}`)}
-              style={{ background: 'rgba(111,207,111,0.1)', border: '1px solid rgba(111,207,111,0.35)', borderRadius: 16, padding: '14px 16px', marginBottom: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 26 }}>🐣</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#6fcf6f' }}>ขายห่านได้แล้ว!</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ตั๋ว #{r.pawns?.ticket_no} · รอยืนยัน</div>
-              </div>
-              <span style={{ fontSize: 20, color: '#6fcf6f' }}>›</span>
-            </div>
-          ))}
-        </div>
       )}
 
       {/* Hero Card */}
@@ -176,18 +147,7 @@ export default function Dashboard() {
         <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px' }}>📊 ผลผลิต</button>
       </div>
 
-      <nav className="bottom-nav">
-        {[
-          { icon: '🪿', label: 'หน้าแรก', href: '/', active: true },
-          { icon: '📋', label: 'ฝูงห่าน', href: '/pawns' },
-          { icon: '🍊', label: 'สวนส้ม', href: '/loans' },
-          { icon: '📊', label: 'ผลผลิต', href: '/report' },
-        ].map(n => (
-          <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`}>
-            <span className="nav-icon">{n.icon}</span>{n.label}
-          </a>
-        ))}
-      </nav>
+      
     </main>
   )
 }

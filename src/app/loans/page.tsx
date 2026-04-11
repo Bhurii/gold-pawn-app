@@ -64,18 +64,7 @@ export default function LoanList() {
         </div>
       )}
 
-      <nav className="bottom-nav">
-        {[
-          { icon: '🪿', label: 'หน้าแรก', href: '/' },
-          { icon: '📋', label: 'ตั๋วทอง', href: '/pawns' },
-          { icon: '💵', label: 'เงินกู้', href: '/loans', active: true },
-          { icon: '📊', label: 'รายงาน', href: '/report' },
-        ].map(n => (
-          <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`}>
-            <span className="nav-icon">{n.icon}</span>{n.label}
-          </a>
-        ))}
-      </nav>
+      
     </main>
   )
 }

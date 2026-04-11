@@ -89,18 +89,7 @@ export default function Report() {
         </>
       )}
 
-      <nav className="bottom-nav">
-        {[
-          { icon: '🏠', label: 'หน้าแรก', href: '/' },
-          { icon: '📋', label: 'รายการ', href: '/pawns' },
-          { icon: '📊', label: 'รายงาน', href: '/report', active: true },
-          { icon: '⚙️', label: 'ตั้งค่า', href: '/settings' },
-        ].map(n => (
-          <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`}>
-            <span className="nav-icon">{n.icon}</span>{n.label}
-          </a>
-        ))}
-      </nav>
+      
     </main>
   )
 }

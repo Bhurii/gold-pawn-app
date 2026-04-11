@@ -55,18 +55,7 @@ export default function PawnList() {
           ))}
         </div>
       )}
-      <nav className="bottom-nav">
-        {[
-          { label: 'หน้าแรก', href: '/' },
-          { label: 'รายการ', href: '/pawns', active: true },
-          { label: 'รายงาน', href: '/report' },
-          { label: 'ตั้งค่า', href: '/settings' },
-        ].map(n => (
-          <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`} style={{ textDecoration: 'none' }}>
-            <span className="nav-icon">⬛</span>{n.label}
-          </a>
-        ))}
-      </nav>
+      
     </main>
   )
 }

@@ -100,12 +100,13 @@ export default function Settings() {
         ออกจากระบบ
       </button>
 
-      <nav className="bottom-nav">
+      
+            <nav className="bottom-nav">
         {[
           { icon: '🪿', label: 'หน้าแรก', href: '/' },
-          { icon: '📋', label: 'ตั๋วทอง', href: '/pawns' },
-          { icon: '💵', label: 'เงินกู้', href: '/loans' },
-          { icon: '⚙️', label: 'ตั้งค่า', href: '/settings', active: true },
+          { icon: '📋', label: 'ฝูงห่าน', href: '/pawns' },
+          { icon: '🍊', label: 'สวนส้ม', href: '/loans' },
+          { icon: '📊', label: 'ผลผลิต', href: '/settings', active: true },
         ].map(n => (
           <a key={n.label} href={n.href} className={`nav-item ${n.active ? 'active' : ''}`}>
             <span className="nav-icon">{n.icon}</span>{n.label}
