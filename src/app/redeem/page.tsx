@@ -23,13 +23,19 @@ function RedeemContent() {
     interest_last: ''
   })
 
-  useEffect(() => { loadActivePawns() }, [])
   useEffect(() => {
-    if (pawnIdFromUrl && pawns.length > 0) {
-      const p = pawns.find(p => p.id === pawnIdFromUrl)
-      if (p) { setSelected(p); loadInterests(p.id); setStep('upload') }
+    loadActivePawns()
+    if (pawnIdFromUrl) loadPawnById(pawnIdFromUrl)
+  }, [])
+
+  async function loadPawnById(pawnId: string) {
+    const { data } = await supabase.from('pawns').select('*').eq('id', pawnId).single()
+    if (data) {
+      setSelected(data)
+      await loadInterests(data.id)
+      setStep('upload')
     }
-  }, [pawnIdFromUrl, pawns])
+  }
 
   async function loadActivePawns() {
     const { data } = await supabase.from('pawns').select('*').eq('status', 'active').eq('tx_status', 'active').order('created_at', { ascending: false })
