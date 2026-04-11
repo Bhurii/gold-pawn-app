@@ -144,6 +144,7 @@ export default function PawnDetail() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <button onClick={() => router.push(`/interest?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>🥚 เก็บไข่ (ตัดดอก)</button>
           <button onClick={() => router.push(`/renew?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>📋 ลดต้น (ออกตั๋วใหม่)</button>
+          <button onClick={() => router.push(`/topup?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>💰 เพิ่มยอด (ออกตั๋วใหม่)</button>
           <button onClick={() => router.push(`/redeem?pawn_id=${id}`)} className="btn-primary" style={{ fontSize: 17 }}>🐣 คืนห่าน (ไถ่ถอน)</button>
         </div>
       )}
