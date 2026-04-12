@@ -11,7 +11,7 @@ async function callGemini(base64: string, mimeType: string, uploadDate: string) 
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('NO_GEMINI_KEY'), { fallback: true })
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-001:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1/models/gemini-3-flash-001:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
