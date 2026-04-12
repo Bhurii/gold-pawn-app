@@ -50,11 +50,11 @@ export default function Login() {
       <div style={{ display: 'flex', background: 'var(--black-700)', borderRadius: 16, padding: 4, gap: 4, marginBottom: 32, width: '100%', maxWidth: 320 }}>
         <button onClick={() => { setMode('agent'); setError(''); setPin('') }}
           style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s', background: mode === 'agent' ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent', color: mode === 'agent' ? '#080808' : 'var(--text-muted)' }}>
-          แม่
+          เจ้หลุยส์
         </button>
         <button onClick={() => { setMode('owner'); setError(''); setPin('') }}
           style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s', background: mode === 'owner' ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent', color: mode === 'owner' ? '#080808' : 'var(--text-muted)' }}>
-          เจ้าของ
+          โทนี่ชาวสวน
         </button>
       </div>
 
