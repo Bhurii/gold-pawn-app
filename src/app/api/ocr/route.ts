@@ -11,7 +11,7 @@ async function callGemini(base64: string, mimeType: string, uploadDate: string) 
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('NO_GEMINI_KEY'), { fallback: true })
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${key}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -45,7 +45,7 @@ async function callOpenRouter(base64: string, mimeType: string, uploadDate: stri
       'X-Title': 'Gold Pawn App',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.0-flash-lite-001',
+      model: 'google/gemma-4-26b-a4b-it:free',
       max_tokens: 256,
       messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }, { type: 'text', text: PROMPT(uploadDate) }] }]
     })
