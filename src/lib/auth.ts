@@ -45,7 +45,7 @@ export async function loginAgent(pin: string): Promise<{ user: AppUser | null, e
   if (!settings?.agent_pin) return { user: null, error: 'ยังไม่ได้ตั้ง PIN กรุณาติดต่อเจ้าของ' }
   if (settings.agent_pin !== pin) return { user: null, error: 'PIN ไม่ถูกต้อง' }
 
-  const user: AppUser = { id: 'agent', role: 'agent', display_name: 'แม่', auth_type: 'pin' }
+  const user: AppUser = { id: 'agent', role: 'agent', display_name: 'เจ้หลุยส์', auth_type: 'pin' }
   setSession(user)
   return { user, error: null }
 }

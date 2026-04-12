@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const PROMPT = `อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด
-วันที่ในตั๋วอาจเขียนแบบย่อด้วยลายมือ เช่น "31 มีค 69" หมายถึง 31 มีนาคม 2569 (พ.ศ.)
-ให้แปลงวันที่เป็น ค.ศ. รูปแบบ YYYY-MM-DD เสมอ เช่น 31 มีค 69 = 2026-03-31
-ตัวเลขปีในตั๋วถ้าเป็น 2 หลัก เช่น 69 = พ.ศ. 2569 = ค.ศ. 2026
-ตัวเลขปีในตั๋วถ้าเป็น 4 หลัก เช่น 2569 = พ.ศ. 2569 = ค.ศ. 2026
-
+const PROMPT = (uploadDate: string) => `อ่านข้อมูลจากสลิปตั๋วจำนำทองนี้ให้ละเอียด
+วันที่อัปโหลดคือ ${uploadDate} ใช้เป็นข้อมูลอ้างอิงในการเดาปีถ้าไม่ชัดเจน
+วันที่ในตั๋วอาจเขียนแบบย่อด้วยลายมือ เช่น "31 มีค 69" หมายถึง 31 มีนาคม 2569 (พ.ศ.) = ค.ศ. 2026
+ถ้าเห็นแค่วันและเดือน ไม่มีปี ให้เดาปีจากวันที่อัปโหลด
 ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:
-{"ticket_no":"เลขที่ตั๋ว","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}`
+{"ticket_no":"","pawn_date":"YYYY-MM-DD","amount":0,"interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}`
 
-async function callGemini(base64: string, mimeType: string) {
+async function callGemini(base64: string, mimeType: string, uploadDate: string) {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('NO_GEMINI_KEY'), { fallback: true })
   const res = await fetch(
@@ -18,7 +16,7 @@ async function callGemini(base64: string, mimeType: string) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: base64 } }, { text: PROMPT }] }],
+        contents: [{ parts: [{ inline_data: { mime_type: mimeType, data: base64 } }, { text: PROMPT(uploadDate) }] }],
         generationConfig: { maxOutputTokens: 256 }
       })
     }
@@ -35,7 +33,7 @@ async function callGemini(base64: string, mimeType: string) {
   return data.candidates[0].content.parts[0].text
 }
 
-async function callOpenRouter(base64: string, mimeType: string) {
+async function callOpenRouter(base64: string, mimeType: string, uploadDate: string) {
   const key = process.env.OPENROUTER_API_KEY
   if (!key) throw new Error('OPENROUTER_API_KEY not set')
   const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -49,7 +47,7 @@ async function callOpenRouter(base64: string, mimeType: string) {
     body: JSON.stringify({
       model: 'google/gemini-2.0-flash-lite-001',
       max_tokens: 256,
-      messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }, { type: 'text', text: PROMPT }] }]
+      messages: [{ role: 'user', content: [{ type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } }, { type: 'text', text: PROMPT(uploadDate) }] }]
     })
   })
   if (!res.ok) {
@@ -65,15 +63,18 @@ export async function POST(req: NextRequest) {
   let geminiError = ''
   try {
     const { base64, mimeType } = await req.json()
+    const uploadDate = new Date().toLocaleDateString('th-TH', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    })
     let text: string
     try {
-      text = await callGemini(base64, mimeType)
-      aiUsed = 'Gemini Flash Lite (free)'
+      text = await callGemini(base64, mimeType, uploadDate)
+      aiUsed = 'Gemini Flash Lite'
     } catch (err: any) {
       geminiError = err.message
       if (err.fallback) {
-        text = await callOpenRouter(base64, mimeType)
-        aiUsed = 'OpenRouter — Gemini Flash Lite'
+        text = await callOpenRouter(base64, mimeType, uploadDate)
+        aiUsed = 'OpenRouter (fallback)'
       } else throw err
     }
     const clean = text.replace(/```json|```/g, '').trim()
