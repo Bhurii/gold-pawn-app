@@ -89,20 +89,20 @@ export async function POST(req: NextRequest) {
 
   // คิวทั้งหมด — ลองทุกตัวตามลำดับ ไม่ break กลางทาง
   const queue: { fn: () => Promise<string>; name: string; skipOnNoKey?: 'google'|'or' }[] = [
-    // Google AI Studio — ฟรี RPD สูงสุด
+    // Google AI Studio — ฟรี เรียงตาม RPD/ความสามารถ
     {
-      name: 'Gemini 3.1 Flash Lite (Google AI Studio ฟรี RPD 500)',
-      fn: () => callGemini('gemini-3.1-flash-lite-preview-05-20', base64, mimeType),
+      name: 'Gemini 2.5 Flash (Google AI Studio ฟรี)',
+      fn: () => callGemini('gemini-2.5-flash', base64, mimeType),
       skipOnNoKey: 'google'
     },
     {
-      name: 'Gemma 4 31B (Google AI Studio ฟรี RPD 1,500)',
-      fn: () => callGemini('gemma-4-31b-it', base64, mimeType),
+      name: 'Gemini 3 Flash Preview (Google AI Studio ฟรี)',
+      fn: () => callGemini('gemini-3-flash-preview', base64, mimeType),
       skipOnNoKey: 'google'
     },
     {
-      name: 'Gemma 4 26B A4B (Google AI Studio ฟรี RPD 1,500)',
-      fn: () => callGemini('gemma-4-26b-a4b-it', base64, mimeType),
+      name: 'Gemini 2.5 Flash Lite (Google AI Studio ฟรี)',
+      fn: () => callGemini('gemini-2.5-flash-lite', base64, mimeType),
       skipOnNoKey: 'google'
     },
     // OpenRouter Free — เรียงตาม OCR performance
