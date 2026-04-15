@@ -94,11 +94,6 @@ export async function POST(req: NextRequest) {
       skipOnNoKey: 'google'
     },
     {
-      name: 'Gemini 3 Flash Preview (Google AI Studio ฟรี)',
-      fn: () => callGemini('gemini-3-flash-preview-05-20', base64, mimeType),
-      skipOnNoKey: 'google'
-    },
-    {
       name: 'Gemini 2.5 Flash Lite (Google AI Studio ฟรี)',
       fn: () => callGemini('gemini-2.5-flash-lite', base64, mimeType),
       skipOnNoKey: 'google'
@@ -109,13 +104,8 @@ export async function POST(req: NextRequest) {
       skipOnNoKey: 'or'
     },
     {
-      name: 'Gemma 4 31B (OpenRouter ฟรี)',
+      name: 'Gemma 4 31B (OpenRouter ฟรี — backup)',
       fn: () => callOR('google/gemma-4-31b-it:free', base64, mimeType),
-      skipOnNoKey: 'or'
-    },
-    {
-      name: 'Gemma 4 26B A4B (OpenRouter ฟรี)',
-      fn: () => callOR('google/gemma-4-26b-a4b-it:free', base64, mimeType),
       skipOnNoKey: 'or'
     },
     {
