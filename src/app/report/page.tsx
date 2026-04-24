@@ -6,69 +6,160 @@ import { toThaiDateShort, fmt } from '@/lib/utils'
 
 const MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 
+type ReportState = {
+  pawnInterest: number
+  loanInterest: number
+  budget: number
+  pawned: number
+  pawnCount: number
+  loanCount: number
+}
+
+type PawnInterestRow = {
+  amount: number
+  payment_date: string
+  pawns?: { ticket_no?: string } | null
+}
+
+type RedemptionRow = {
+  interest_last: number | null
+  redeem_date: string
+  pawns?: { ticket_no?: string } | null
+}
+
+type LoanInterestRow = {
+  amount: number
+  transaction_date: string
+  loans?: { borrower_name?: string } | null
+}
+
+type PawnDetail = {
+  ticket?: string
+  amount: number
+  date: string
+  type: string
+}
+
+type LoanDetail = {
+  name?: string
+  amount: number
+  date: string
+}
+
+function getDateRangeForYear(year: number) {
+  return {
+    firstDay: `${year}-01-01`,
+    lastDay: `${year}-12-31`,
+  }
+}
+
+function getMonthIndex(dateStr: string) {
+  return new Date(`${dateStr}T00:00:00`).getMonth()
+}
+
 export default function Report() {
   const router = useRouter()
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
-  const [data, setData] = useState<any>({ pawnInterest: 0, loanInterest: 0, otherIncome: 0, budget: 0, pawned: 0, pawnCount: 0, loanCount: 0 })
-  const [pawnDetails, setPawnDetails] = useState<any[]>([])
-  const [loanDetails, setLoanDetails] = useState<any[]>([])
+  const [data, setData] = useState<ReportState>({ pawnInterest: 0, loanInterest: 0, budget: 0, pawned: 0, pawnCount: 0, loanCount: 0 })
+  const [pawnDetails, setPawnDetails] = useState<PawnDetail[]>([])
+  const [loanDetails, setLoanDetails] = useState<LoanDetail[]>([])
   const [monthlyData, setMonthlyData] = useState<number[]>(Array(12).fill(0))
   const [loading, setLoading] = useState(true)
   const [expandPawn, setExpandPawn] = useState(false)
   const [expandLoan, setExpandLoan] = useState(false)
+  const [yearBudget, setYearBudget] = useState(0)
+  const [yearPawned, setYearPawned] = useState(0)
+  const [yearInterests, setYearInterests] = useState<PawnInterestRow[]>([])
+  const [yearRedemptions, setYearRedemptions] = useState<RedemptionRow[]>([])
+  const [yearLoanTxns, setYearLoanTxns] = useState<LoanInterestRow[]>([])
 
-  useEffect(() => { loadReport() }, [selectedMonth, selectedYear])
-  useEffect(() => { loadYearlyChart() }, [selectedYear])
+  useEffect(() => { loadYearData() }, [selectedYear])
+  useEffect(() => { buildMonthData() }, [selectedMonth, yearBudget, yearPawned, yearInterests, yearRedemptions, yearLoanTxns])
 
-  async function loadReport() {
+  async function loadYearData() {
     setLoading(true)
-    const firstDay = new Date(selectedYear, selectedMonth, 1).toISOString().split('T')[0]
-    const lastDay = new Date(selectedYear, selectedMonth + 1, 0).toISOString().split('T')[0]
+    const { firstDay, lastDay } = getDateRangeForYear(selectedYear)
 
     const [{ data: settings }, { data: interests }, { data: redemptions }, { data: loanTxns }, { data: pawns }] = await Promise.all([
       supabase.from('settings').select('invest_budget').single(),
-      supabase.from('interest_payments').select('amount, payment_date, pawn_id, pawns(ticket_no)').gte('payment_date', firstDay).lte('payment_date', lastDay),
-      supabase.from('redemptions').select('interest_last, interest_total, redeem_date, pawn_id, pawns(ticket_no)').gte('redeem_date', firstDay).lte('redeem_date', lastDay),
-      supabase.from('loan_transactions').select('amount, transaction_date, loan_id, loans(borrower_name)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay),
+      supabase.from('interest_payments').select('amount, payment_date, pawns(ticket_no)').gte('payment_date', firstDay).lte('payment_date', lastDay),
+      supabase.from('redemptions').select('interest_last, redeem_date, pawns(ticket_no)').gte('redeem_date', firstDay).lte('redeem_date', lastDay),
+      supabase.from('loan_transactions').select('amount, transaction_date, loans(borrower_name)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay),
       supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active'),
     ])
 
-    const budget = settings?.invest_budget || 0
-    const pawned = pawns?.reduce((s: number, p: any) => s + p.amount, 0) || 0
-
-    let pawnInterest = 0
-    const pawnDet: any[] = []
-    interests?.forEach((i: any) => { pawnInterest += i.amount; pawnDet.push({ ticket: i.pawns?.ticket_no, amount: i.amount, date: i.payment_date, type: 'ตัดดอก' }) })
-    redemptions?.forEach((r: any) => { pawnInterest += r.interest_last || 0; pawnDet.push({ ticket: r.pawns?.ticket_no, amount: r.interest_last, date: r.redeem_date, type: 'ไถ่ถอน' }) })
-
-    let loanInterest = 0
-    const loanDet: any[] = []
-    loanTxns?.forEach((t: any) => { loanInterest += t.amount; loanDet.push({ name: t.loans?.borrower_name, amount: t.amount, date: t.transaction_date }) })
-
-    setPawnDetails(pawnDet.sort((a, b) => b.date.localeCompare(a.date)))
-    setLoanDetails(loanDet.sort((a, b) => b.date.localeCompare(a.date)))
-    setData({ pawnInterest, loanInterest, budget, pawned, pawnCount: pawnDet.length, loanCount: loanDet.length })
-    setLoading(false)
+    setYearBudget(settings?.invest_budget || 0)
+    setYearPawned(pawns?.reduce((sum: number, pawn: { amount: number }) => sum + pawn.amount, 0) || 0)
+    setYearInterests((interests || []) as PawnInterestRow[])
+    setYearRedemptions((redemptions || []) as RedemptionRow[])
+    setYearLoanTxns((loanTxns || []) as LoanInterestRow[])
   }
 
-  async function loadYearlyChart() {
-    const monthly: number[] = Array(12).fill(0)
-    for (let m = 0; m < 12; m++) {
-      const firstDay = new Date(selectedYear, m, 1).toISOString().split('T')[0]
-      const lastDay = new Date(selectedYear, m + 1, 0).toISOString().split('T')[0]
-      const [{ data: i }, { data: r }, { data: l }] = await Promise.all([
-        supabase.from('interest_payments').select('amount').gte('payment_date', firstDay).lte('payment_date', lastDay),
-        supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay).lte('redeem_date', lastDay),
-        supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay),
-      ])
-      let total = 0
-      i?.forEach((x: any) => total += x.amount)
-      r?.forEach((x: any) => total += x.interest_last || 0)
-      l?.forEach((x: any) => total += x.amount)
-      monthly[m] = total
-    }
-    setMonthlyData(monthly)
+  function buildMonthData() {
+    const nextMonthly = Array(12).fill(0)
+    const nextPawnDetails: PawnDetail[] = []
+    const nextLoanDetails: LoanDetail[] = []
+    let pawnInterest = 0
+    let loanInterest = 0
+
+    yearInterests.forEach((interest) => {
+      const month = getMonthIndex(interest.payment_date)
+      nextMonthly[month] += interest.amount
+
+      if (month === selectedMonth) {
+        pawnInterest += interest.amount
+        nextPawnDetails.push({
+          ticket: interest.pawns?.ticket_no,
+          amount: interest.amount,
+          date: interest.payment_date,
+          type: 'ตัดดอก',
+        })
+      }
+    })
+
+    yearRedemptions.forEach((redemption) => {
+      const amount = redemption.interest_last || 0
+      const month = getMonthIndex(redemption.redeem_date)
+      nextMonthly[month] += amount
+
+      if (month === selectedMonth) {
+        pawnInterest += amount
+        nextPawnDetails.push({
+          ticket: redemption.pawns?.ticket_no,
+          amount,
+          date: redemption.redeem_date,
+          type: 'ไถ่ถอน',
+        })
+      }
+    })
+
+    yearLoanTxns.forEach((txn) => {
+      const month = getMonthIndex(txn.transaction_date)
+      nextMonthly[month] += txn.amount
+
+      if (month === selectedMonth) {
+        loanInterest += txn.amount
+        nextLoanDetails.push({
+          name: txn.loans?.borrower_name,
+          amount: txn.amount,
+          date: txn.transaction_date,
+        })
+      }
+    })
+
+    setMonthlyData(nextMonthly)
+    setPawnDetails(nextPawnDetails.sort((a, b) => b.date.localeCompare(a.date)))
+    setLoanDetails(nextLoanDetails.sort((a, b) => b.date.localeCompare(a.date)))
+    setData({
+      pawnInterest,
+      loanInterest,
+      budget: yearBudget,
+      pawned: yearPawned,
+      pawnCount: nextPawnDetails.length,
+      loanCount: nextLoanDetails.length,
+    })
+    setLoading(false)
   }
 
   const totalInterest = data.pawnInterest + data.loanInterest
@@ -86,7 +177,6 @@ export default function Report() {
         </select>
       </div>
 
-      {/* กราฟรายปี */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 14 }}>🥚 ไข่รายเดือน พ.ศ. {selectedYear + 543}</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80, marginBottom: 8 }}>
@@ -114,7 +204,6 @@ export default function Report() {
         </div>
       </div>
 
-      {/* เดือนที่เลือก */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
         <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}
           className="input-field" style={{ flex: 1, padding: '10px 14px', fontSize: 15 }}>
@@ -127,7 +216,6 @@ export default function Report() {
         <div style={{ textAlign: 'center', color: 'var(--gold)', padding: 40, fontSize: 18 }}>กำลังโหลด...</div>
       ) : (
         <>
-          {/* ไข่เดือนนี้ */}
           <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 20, padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🥚 ไข่ทั้งหมด {MONTHS_SHORT[selectedMonth]} {selectedYear + 543}</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(totalInterest)}</div>
@@ -143,7 +231,6 @@ export default function Report() {
             </div>
           </div>
 
-          {/* ไข่จากห่านทองคำ */}
           <div className="card" style={{ marginBottom: 12 }}>
             <div onClick={() => setExpandPawn(!expandPawn)}
               style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
@@ -177,7 +264,6 @@ export default function Report() {
             )}
           </div>
 
-          {/* ผลจากสวนส้ม */}
           <div className="card" style={{ marginBottom: 12 }}>
             <div onClick={() => setExpandLoan(!expandLoan)}
               style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
@@ -210,7 +296,6 @@ export default function Report() {
             )}
           </div>
 
-          {/* สรุปฟาร์ม */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div className="card" style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🏡 มูลค่าฟาร์ม</div>

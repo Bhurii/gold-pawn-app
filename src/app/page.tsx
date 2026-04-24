@@ -24,30 +24,38 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      const { data: settings } = await supabase.from('settings').select('*').single()
-      if (settings) setBudget(settings.invest_budget)
-
-      const { data: pawns } = await supabase.from('pawns').select('*').eq('status', 'active')
-      if (pawns) {
-        setActivePawns(pawns.filter(p => p.tx_status === 'active').length)
-        setActiveAmount(pawns.filter(p => p.tx_status === 'active').reduce((s, p) => s + p.amount, 0))
-        setPendingPawns(pawns.filter(p => p.tx_status === 'pending_transfer'))
-      }
-
-      const { data: pendingR } = await supabase.from('redemptions').select('*, pawns(ticket_no, amount)').eq('status', 'pending_confirm')
-      if (pendingR) setPendingRedeems(pendingR)
-
-      const { data: loans } = await supabase.from('loans').select('*').eq('status', 'active')
-      if (loans) {
-        setActiveLoans(loans.length)
-        setLoanAmount(loans.reduce((s, l) => s + l.remaining_principal, 0))
-      }
-
       const now = new Date()
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-      const { data: interests } = await supabase.from('interest_payments').select('amount').gte('payment_date', firstDay)
-      const { data: redemptions } = await supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay)
-      const { data: loanTxns } = await supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay)
+      const [
+        { data: settings },
+        { data: pawns },
+        { data: pendingR },
+        { data: loans },
+        { data: interests },
+        { data: redemptions },
+        { data: loanTxns },
+      ] = await Promise.all([
+        supabase.from('settings').select('invest_budget').single(),
+        supabase.from('pawns').select('id, ticket_no, amount, tx_status').eq('status', 'active'),
+        supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount)').eq('status', 'pending_confirm'),
+        supabase.from('loans').select('id, remaining_principal').eq('status', 'active'),
+        supabase.from('interest_payments').select('amount').gte('payment_date', firstDay),
+        supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay),
+        supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay),
+      ])
+
+      if (settings) setBudget(settings.invest_budget)
+      if (pawns) {
+        const activeReadyPawns = pawns.filter(p => p.tx_status === 'active')
+        setActivePawns(activeReadyPawns.length)
+        setActiveAmount(activeReadyPawns.reduce((sum, pawn) => sum + pawn.amount, 0))
+        setPendingPawns(pawns.filter(p => p.tx_status === 'pending_transfer'))
+      }
+      if (pendingR) setPendingRedeems(pendingR)
+      if (loans) {
+        setActiveLoans(loans.length)
+        setLoanAmount(loans.reduce((sum, loan) => sum + loan.remaining_principal, 0))
+      }
 
       let totalInterest = 0, count = 0
       if (interests) { totalInterest += interests.reduce((s, i) => s + i.amount, 0); count += interests.length }
@@ -64,7 +72,6 @@ export default function Dashboard() {
   const remaining = budget - totalInvested
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
-  const isOwner = user?.role === 'owner'
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>

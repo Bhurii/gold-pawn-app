@@ -1,5 +1,4 @@
 'use client'
-import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
