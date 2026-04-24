@@ -1,14 +1,16 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Pawn } from '@/lib/types'
 
 export default function PawnList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [pawns, setPawns] = useState<Pawn[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'redeemed'>('all')
+  const [search, setSearch] = useState(searchParams.get('search') || '')
 
   useEffect(() => { loadPawns() }, [])
 
@@ -18,24 +20,41 @@ export default function PawnList() {
     setLoading(false)
   }
 
-  const filtered = pawns.filter(p => filter === 'all' ? true : p.status === filter)
+  const filtered = pawns.filter((pawn) => {
+    const matchFilter = filter === 'all' ? true : pawn.status === filter
+    const keyword = search.trim().toLowerCase()
+    const matchSearch = keyword ? String(pawn.ticket_no).toLowerCase().includes(keyword) : true
+    return matchFilter && matchSearch
+  })
 
   return (
     <main className="page-container">
       <div style={{ padding: '52px 0 16px' }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)' }}>รายการทั้งหมด</div>
       </div>
+      <div style={{ marginBottom: 12 }}>
+        <input
+          className="input-field"
+          type="text"
+          inputMode="numeric"
+          placeholder="ค้นหาตามเลขตั๋ว"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {(['all', 'active', 'redeemed'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{ padding: '7px 16px', borderRadius: 99, fontSize: 13, fontWeight: 600, border: '0.5px solid', cursor: 'pointer', borderColor: filter === f ? 'var(--gold)' : 'var(--border)', background: filter === f ? 'rgba(232,197,90,0.15)' : 'transparent', color: filter === f ? 'var(--gold)' : 'var(--text-muted)' }}>
-            {f === 'all' ? 'ทั้งหมด' : f === 'active' ? 'จำนำอยู่' : 'ไถ่ถอนแล้ว'}
+            {f === 'all' ? 'ทั้งหมด' : f === 'active' ? 'จำนำอยู่' : 'ไถ่ถอนไปแล้ว'}
           </button>
         ))}
       </div>
       {loading ? (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>กำลังโหลด...</div>
       ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>ไม่มีรายการ</div>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+          {search.trim() ? 'ไม่พบหมายเลขตั๋วที่ค้นหา' : 'ไม่มีรายการ'}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {filtered.map(p => (
@@ -48,15 +67,15 @@ export default function PawnList() {
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--gold)' }}>฿{p.amount.toLocaleString('th-TH')}</div>
                 <span className={p.status === 'active' ? 'badge-active' : 'badge-redeemed'}>
-                  {p.status === 'active' ? 'จำนำอยู่' : 'ไถ่ถอนแล้ว'}
+                  {p.status === 'active' ? 'จำนำอยู่' : 'ไถ่ถอนไปแล้ว'}
                 </span>
               </div>
             </div>
           ))}
         </div>
       )}
-      
-          <nav className="bottom-nav">
+
+      <nav className="bottom-nav">
         <a href="/" className="nav-item"><span className="nav-icon">🪿</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item active"><span className="nav-icon">📋</span>ฝูงห่าน</a>
         <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
