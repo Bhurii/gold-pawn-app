@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { getSession, AppUser } from '@/lib/auth'
+import { getSession, clearSession, AppUser } from '@/lib/auth'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -15,7 +15,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     } else {
       setUser(session)
     }
-  }, [pathname])
+  }, [pathname, router])
+
+  function handleLogout() {
+    clearSession()
+    setUser(null)
+    router.replace('/login')
+  }
 
   if (pathname === '/login') return <>{children}</>
   if (user === undefined) return (
@@ -24,5 +30,30 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     </div>
   )
   if (!user) return null
-  return <>{children}</>
+
+  return (
+    <>
+      <button
+        onClick={handleLogout}
+        style={{
+          position: 'fixed',
+          top: 14,
+          right: 14,
+          zIndex: 300,
+          border: '1px solid rgba(240,149,149,0.35)',
+          background: 'rgba(8,8,8,0.92)',
+          color: '#f09595',
+          borderRadius: 999,
+          padding: '10px 14px',
+          fontSize: 13,
+          fontWeight: 700,
+          cursor: 'pointer',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.28)',
+        }}
+      >
+        ออกจากระบบ
+      </button>
+      {children}
+    </>
+  )
 }
