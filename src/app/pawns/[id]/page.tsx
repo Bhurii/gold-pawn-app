@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import { getSession } from '@/lib/auth'
 import PawnChecklist from '@/components/PawnChecklist'
+import { uploadSlip } from '@/lib/slip-storage'
+import { errorMessage } from '@/lib/validation'
 
 export default function PawnDetail() {
   const router = useRouter()
@@ -43,16 +45,13 @@ export default function PawnDetail() {
   async function confirmTransfer(file: File) {
     setUploadingPawnSlip(true)
     try {
-      const path = `transfer/${Date.now()}.${file.name.split('.').pop()}`
-      const { error } = await supabase.storage.from('slips').upload(path, file)
-      if (error) throw error
-      const { data } = supabase.storage.from('slips').getPublicUrl(path)
-      await supabase.from('transfer_slips').insert({ pawn_id: id, direction: 'me_to_mom', slip_url: data.publicUrl, amount: pawn?.amount, confirmed_at: new Date().toISOString() })
+      const slipUrl = await uploadSlip(file, 'transfer')
+      await supabase.from('transfer_slips').insert({ pawn_id: id, direction: 'me_to_mom', slip_url: slipUrl, amount: pawn?.amount, confirmed_at: new Date().toISOString() })
       await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
       await supabase.from('notifications').insert({ type: 'transfer_confirmed', message: `โอนเงินแล้ว! ตั๋ว #${pawn?.ticket_no} ฿${pawn?.amount?.toLocaleString('th-TH')}`, pawn_id: String(id) })
       await loadData()
       alert('บันทึกสำเร็จ ✅')
-    } catch (e: any) { alert('เกิดข้อผิดพลาด: ' + e.message) }
+    } catch (e) { alert('เกิดข้อผิดพลาด: ' + errorMessage(e)) }
     finally { setUploadingPawnSlip(false) }
   }
 

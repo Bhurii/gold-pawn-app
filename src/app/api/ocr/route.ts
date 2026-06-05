@@ -11,6 +11,25 @@ function makePrompt() {
 
 type StepLog = { name: string; status: 'ok'|'quota'|'error'|'nokey'; reason?: string }
 
+const MAX_BASE64_IMAGE_LENGTH = 12_000_000
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
+
+function validatePayload(base64: unknown, mimeType: unknown): { base64: string; mimeType: string } {
+  if (typeof base64 !== 'string' || !base64) {
+    throw new Error('Missing image data')
+  }
+  if (base64.length > MAX_BASE64_IMAGE_LENGTH) {
+    throw new Error('Image is too large')
+  }
+  if (typeof mimeType !== 'string' || !ALLOWED_MIME_TYPES.has(mimeType)) {
+    throw new Error('Unsupported image type')
+  }
+  if (!/^[A-Za-z0-9+/=]+$/.test(base64)) {
+    throw new Error('Invalid image data')
+  }
+  return { base64, mimeType }
+}
+
 async function callGemini(modelId: string, base64: string, mimeType: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('ไม่มี GEMINI_API_KEY'), { nokey: true })
@@ -84,7 +103,16 @@ function parseJSON(text: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const { base64, mimeType } = await req.json()
+  const body = await req.json().catch(() => null)
+  let payload: { base64: string; mimeType: string }
+  try {
+    payload = validatePayload(body?.base64, body?.mimeType)
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Invalid request'
+    return NextResponse.json({ success: false, error: message }, { status: 400 })
+  }
+
+  const { base64, mimeType } = payload
   const log: StepLog[] = []
 
   const queue: { fn: () => Promise<string>; name: string; skipOnNoKey?: 'google'|'or' }[] = [
@@ -130,16 +158,17 @@ export async function POST(req: NextRequest) {
       if (!text.trim()) throw new Error('ได้ response ว่าง')
       const parsed = parseJSON(text)
       return NextResponse.json({ success: true, data: parsed, ai_used: item.name, steps: log })
-    } catch (e: any) {
-      if (e.nokey) {
+    } catch (e) {
+      const err = e as Error & { nokey?: boolean; isQuota?: boolean }
+      if (err.nokey) {
         step.status = 'nokey'
         step.reason = 'ไม่มี API key'
         if (item.skipOnNoKey === 'google') googleKeyMissing = true
         if (item.skipOnNoKey === 'or') orKeyMissing = true
         continue
       }
-      step.status = e.isQuota ? 'quota' : 'error'
-      step.reason = e.message?.slice(0, 100)
+      step.status = err.isQuota ? 'quota' : 'error'
+      step.reason = err.message?.slice(0, 100)
     }
   }
 

@@ -1,8 +1,8 @@
 'use client'
-import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 export default function NewLoan() {
   const router = useRouter()
@@ -22,13 +22,15 @@ export default function NewLoan() {
     }
     setSaving(true)
     try {
-      const principal = parseFloat(form.principal)
+      const principal = parsePositiveMoney(form.principal, 'Loan principal')
+      const interestRate = parseNonNegativeMoney(form.interest_rate, 'Interest rate')
+      const startDate = requireDate(form.start_date, 'Start date')
       const { data: loan, error } = await supabase.from('loans').insert({
         borrower_name: form.borrower_name,
-        start_date: form.start_date,
+        start_date: startDate,
         principal,
         remaining_principal: principal,
-        interest_rate: parseFloat(form.interest_rate) || 0,
+        interest_rate: interestRate,
         notes: form.notes,
         status: 'active'
       }).select().single()
@@ -37,13 +39,13 @@ export default function NewLoan() {
         loan_id: loan.id,
         type: 'principal',
         amount: principal,
-        transaction_date: form.start_date,
+        transaction_date: startDate,
         note: 'ปล่อยกู้ครั้งแรก'
       })
       alert('บันทึกสำเร็จ!')
       router.push(`/loans/${loan.id}`)
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }

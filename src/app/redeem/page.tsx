@@ -3,6 +3,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
+import { uploadSlip } from '@/lib/slip-storage'
+import { errorMessage, parseNonNegativeMoney, requireDate } from '@/lib/validation'
 
 function RedeemContent() {
   const router = useRouter()
@@ -53,11 +55,7 @@ function RedeemContent() {
   }
 
   async function uploadImage(file: File, folder: string) {
-    const path = `${folder}/${Date.now()}.${file.name.split('.').pop()}`
-    const { error } = await supabase.storage.from('slips').upload(path, file)
-    if (error) return ''
-    const { data } = supabase.storage.from('slips').getPublicUrl(path)
-    return data.publicUrl
+    return uploadSlip(file, folder)
   }
 
   async function handleSave() {
@@ -66,13 +64,14 @@ function RedeemContent() {
     try {
       const pawnSlipUrl = pawnImage ? await uploadImage(pawnImage, 'redeem-pawn') : ''
       const transferSlipUrl = transferImage ? await uploadImage(transferImage, 'redeem-transfer') : ''
-      const interestLast = parseFloat(form.interest_last) || 0
+      const redeemDate = requireDate(form.redeem_date, 'Redeem date')
+      const interestLast = parseNonNegativeMoney(form.interest_last, 'Last interest')
       const interestPaid = interestPayments.reduce((s, i) => s + i.amount, 0)
       const interestTotal = interestPaid + interestLast
 
       const { data: redemption, error } = await supabase.from('redemptions').insert({
         pawn_id: selected.id,
-        redeem_date: form.redeem_date,
+        redeem_date: redeemDate,
         interest_last: interestLast,
         interest_total: interestTotal,
         total_return: selected.amount + interestTotal,
@@ -91,15 +90,15 @@ function RedeemContent() {
 
       alert('บันทึกสำเร็จ! รอชาวสวนยืนยัน 🐣')
       router.push('/')
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }
   }
 
   const interestPaid = interestPayments.reduce((s, i) => s + i.amount, 0)
-  const interestLast = parseFloat(form.interest_last) || 0
+  const interestLast = Number(form.interest_last) || 0
   const interestTotal = interestPaid + interestLast
 
   if (step === 'select') return (

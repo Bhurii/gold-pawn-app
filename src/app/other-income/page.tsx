@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 export default function OtherIncome() {
   const router = useRouter()
@@ -23,17 +24,19 @@ export default function OtherIncome() {
     if (!form.amount || !form.source) { alert('กรุณากรอกข้อมูลให้ครบ'); return }
     setSaving(true)
     try {
+      const amount = parsePositiveMoney(form.amount, 'Income amount')
+      const incomeDate = requireDate(form.income_date, 'Income date')
       await supabase.from('other_income').insert({
-        income_date: form.income_date,
-        amount: parseFloat(form.amount),
+        income_date: incomeDate,
+        amount,
         source: form.source,
         note: form.note
       })
       setForm({ income_date: new Date().toISOString().split('T')[0], amount: '', source: '', note: '' })
       setShowForm(false)
       loadData()
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }

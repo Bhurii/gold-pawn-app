@@ -1,9 +1,10 @@
 'use client'
-import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
+import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 export default function NewPawn() {
   const router = useRouter()
@@ -20,6 +21,13 @@ export default function NewPawn() {
   function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    try {
+      assertImageFile(file)
+    } catch (err) {
+      alert(errorMessage(err))
+      e.currentTarget.value = ''
+      return
+    }
     setImage(file)
     setPreview(URL.createObjectURL(file))
     setExistingPawn(null)
@@ -80,19 +88,13 @@ export default function NewPawn() {
     }
     setSaving(true)
     try {
-      let slip_url = ''
-      if (image) {
-        const path = `pawns/${Date.now()}.${image.name.split('.').pop()}`
-        const { error } = await supabase.storage.from('slips').upload(path, image)
-        if (!error) {
-          const { data } = supabase.storage.from('slips').getPublicUrl(path)
-          slip_url = data.publicUrl
-        }
-      }
+      const amount = parsePositiveMoney(form.amount, 'Pawn amount')
+      const pawnDate = requireDate(form.pawn_date, 'Pawn date')
+      const slip_url = image ? await uploadSlip(image, 'pawns') : ''
       const { data: pawn, error } = await supabase.from('pawns').insert({
         ticket_no: form.ticket_no,
-        pawn_date: form.pawn_date,
-        amount: parseFloat(form.amount),
+        pawn_date: pawnDate,
+        amount,
         pawn_slip_url: slip_url,
         status: 'active',
         tx_status: 'pending_transfer'
@@ -100,13 +102,13 @@ export default function NewPawn() {
       if (error) throw error
       await supabase.from('notifications').insert({
         type: 'pawn_created',
-        message: `มีคนมาขายห่านจ้า! ตั๋ว #${form.ticket_no} ฿${parseFloat(form.amount).toLocaleString('th-TH')} โอนตังเลย`,
+        message: `มีคนมาขายห่านจ้า! ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} โอนตังเลย`,
         pawn_id: pawn.id
       })
       alert('บันทึกสำเร็จ! รอชาวสวนโอนเงิน')
       router.push(`/pawns/${pawn.id}`)
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }

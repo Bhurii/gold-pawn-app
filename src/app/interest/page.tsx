@@ -3,6 +3,8 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, fmt } from '@/lib/utils'
+import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 function InterestContent() {
   const router = useRouter()
@@ -39,31 +41,25 @@ function InterestContent() {
     }
     setSaving(true)
     try {
-      let slip_url = ''
-      if (image) {
-        const path = `interest/${Date.now()}.${image.name.split('.').pop()}`
-        const { error } = await supabase.storage.from('slips').upload(path, image)
-        if (!error) {
-          const { data } = supabase.storage.from('slips').getPublicUrl(path)
-          slip_url = data.publicUrl
-        }
-      }
+      const amount = parsePositiveMoney(form.amount, 'Interest amount')
+      const paymentDate = requireDate(form.payment_date, 'Payment date')
+      const slip_url = image ? await uploadSlip(image, 'interest') : ''
       await supabase.from('interest_payments').insert({
         pawn_id: selected.id,
-        payment_date: form.payment_date,
-        amount: parseFloat(form.amount),
+        payment_date: paymentDate,
+        amount,
         slip_url,
         note: form.note
       })
       await supabase.from('notifications').insert({
         type: 'interest_paid',
-        message: `ตัดดอกตั๋ว #${selected.ticket_no} ฿${parseFloat(form.amount).toLocaleString('th-TH')}`,
+        message: `ตัดดอกตั๋ว #${selected.ticket_no} ฿${amount.toLocaleString('th-TH')}`,
         pawn_id: selected.id
       })
       alert('บันทึกการตัดดอกสำเร็จ!')
       router.push(`/pawns/${selected.id}`)
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -115,12 +111,12 @@ function InterestContent() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '18px 12px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                  <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) { setImage(f); setPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+                  <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) { try { assertImageFile(f); setImage(f); setPreview(URL.createObjectURL(f)) } catch (err) { alert(errorMessage(err)); e.currentTarget.value = '' } } }} style={{ display: 'none' }} />
                   <span style={{ fontSize: 30 }}>📷</span>
                   <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 15 }}>ถ่ายรูป</span>
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '18px 12px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                  <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) { setImage(f); setPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+                  <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) { try { assertImageFile(f); setImage(f); setPreview(URL.createObjectURL(f)) } catch (err) { alert(errorMessage(err)); e.currentTarget.value = '' } } }} style={{ display: 'none' }} />
                   <span style={{ fontSize: 30 }}>🖼️</span>
                   <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 15 }}>เลือกจากคลัง</span>
                 </label>

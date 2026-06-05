@@ -11,21 +11,34 @@ export interface AppUser {
 
 const SESSION_KEY = 'haantong_user'
 
+function isAppUser(value: unknown): value is AppUser {
+  if (!value || typeof value !== 'object') return false
+  const user = value as Partial<AppUser>
+  return typeof user.id === 'string'
+    && (user.role === 'owner' || user.role === 'agent')
+    && typeof user.display_name === 'string'
+    && (user.auth_type === 'email' || user.auth_type === 'pin')
+}
+
 export function getSession(): AppUser | null {
   if (typeof window === 'undefined') return null
   try {
     const s = sessionStorage.getItem(SESSION_KEY)
-    return s ? JSON.parse(s) : null
+    if (!s) return null
+    const parsed = JSON.parse(s)
+    return isAppUser(parsed) ? parsed : null
   } catch { return null }
 }
 
 export function setSession(user: AppUser) {
+  if (typeof window === 'undefined') return
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(user))
 }
 
 export function clearSession() {
+  if (typeof window === 'undefined') return
   sessionStorage.removeItem(SESSION_KEY)
-  supabase.auth.signOut()
+  void supabase.auth.signOut()
 }
 
 export async function loginOwner(email: string, password: string): Promise<{ user: AppUser | null, error: string | null }> {

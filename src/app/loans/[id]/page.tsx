@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type TxnType = 'interest' | 'principal_payment' | 'close'
 
@@ -35,16 +37,15 @@ export default function LoanDetail() {
     try {
       let slip_url = ''
       if (image) {
-        const path = `loans/${Date.now()}.${image.name.split('.').pop()}`
-        const { error } = await supabase.storage.from('slips').upload(path, image)
-        if (!error) { const { data } = supabase.storage.from('slips').getPublicUrl(path); slip_url = data.publicUrl }
+        slip_url = await uploadSlip(image, 'loans')
       }
 
-      const amount = txnType === 'close' ? loan.remaining_principal : parseFloat(form.amount)
+      const amount = txnType === 'close' ? loan.remaining_principal : parsePositiveMoney(form.amount, 'Transaction amount')
+      const transactionDate = requireDate(form.date, 'Transaction date')
 
       await supabase.from('loan_transactions').insert({
         loan_id: id, type: txnType, amount,
-        transaction_date: form.date, slip_url, note: form.note
+        transaction_date: transactionDate, slip_url, note: form.note
       })
 
       if (txnType === 'principal_payment') {
@@ -60,8 +61,8 @@ export default function LoanDetail() {
       setForm({ amount: '', date: new Date().toISOString().split('T')[0], note: '' })
       setImage(null); setPreview('')
       loadData()
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -168,12 +169,12 @@ export default function LoanDetail() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-700)' }}>
-                  <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) { setImage(f); setPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+                  <input type="file" accept="image/*" capture="environment" onChange={e => { const f = e.target.files?.[0]; if (f) { try { assertImageFile(f); setImage(f); setPreview(URL.createObjectURL(f)) } catch (err) { alert(errorMessage(err)); e.currentTarget.value = '' } } }} style={{ display: 'none' }} />
                   <span style={{ fontSize: 26 }}>📷</span>
                   <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-700)' }}>
-                  <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) { setImage(f); setPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+                  <input type="file" accept="image/*" onChange={e => { const f = e.target.files?.[0]; if (f) { try { assertImageFile(f); setImage(f); setPreview(URL.createObjectURL(f)) } catch (err) { alert(errorMessage(err)); e.currentTarget.value = '' } } }} style={{ display: 'none' }} />
                   <span style={{ fontSize: 26 }}>🖼️</span>
                   <span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
                 </label>

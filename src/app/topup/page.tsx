@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
+import { uploadSlip } from '@/lib/slip-storage'
+import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 function TopupContent() {
   const router = useRouter()
@@ -60,11 +62,7 @@ function TopupContent() {
   }
 
   async function uploadImage(file: File, folder: string) {
-    const path = `${folder}/${Date.now()}.${file.name.split('.').pop()}`
-    const { error } = await supabase.storage.from('slips').upload(path, file)
-    if (error) return ''
-    const { data } = supabase.storage.from('slips').getPublicUrl(path)
-    return data.publicUrl
+    return uploadSlip(file, folder)
   }
 
   async function handleSave() {
@@ -74,8 +72,9 @@ function TopupContent() {
 
     setSaving(true)
     try {
-      const interest = parseFloat(form.interest) || 0
-      const topupAmount = parseFloat(form.topup_amount) || 0
+      const interest = parseNonNegativeMoney(form.interest, 'Interest')
+      const topupAmount = parsePositiveMoney(form.topup_amount, 'Top-up amount')
+      const newDate = requireDate(form.new_date, 'New ticket date')
       const newAmount = pawn.amount + topupAmount
 
       const newTicketUrl = newTicketImage ? await uploadImage(newTicketImage, 'pawns') : ''
@@ -88,7 +87,7 @@ function TopupContent() {
 
       await supabase.from('redemptions').insert({
         pawn_id: pawn.id,
-        redeem_date: form.new_date,
+        redeem_date: newDate,
         interest_last: interest,
         interest_total: interest,
         total_return: pawn.amount + interest,
@@ -99,7 +98,7 @@ function TopupContent() {
 
       const { data: newPawn, error } = await supabase.from('pawns').insert({
         ticket_no: form.new_ticket_no,
-        pawn_date: form.new_date,
+        pawn_date: newDate,
         amount: newAmount,
         pawn_slip_url: newTicketUrl,
         status: 'active',
@@ -120,8 +119,8 @@ function TopupContent() {
 
       alert(`เพิ่มยอดสำเร็จ! ✅\nตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}\nต้องโอนเพิ่ม ฿${fmt(topupAmount)}`)
       router.replace(`/pawns/${newPawn.id}`)
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -130,8 +129,8 @@ function TopupContent() {
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
   if (!pawn) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูล</div>
 
-  const interest = parseFloat(form.interest) || 0
-  const topupAmount = parseFloat(form.topup_amount) || 0
+  const interest = Number(form.interest) || 0
+  const topupAmount = Number(form.topup_amount) || 0
   const newAmount = pawn.amount + topupAmount
 
   return (

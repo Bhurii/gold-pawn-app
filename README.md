@@ -1,4 +1,27 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gold Pawn App
+
+Next.js app for managing pawn, interest, redeem, loan, and reporting workflows with Supabase.
+
+## Required setup
+
+Copy `.env.example` to `.env.local` and fill in Supabase values:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+OCR is optional. Add `GEMINI_API_KEY` or `OPENROUTER_API_KEY` when you want AI ticket scanning.
+
+## Supabase
+
+Review the baseline schema before applying it:
+
+```bash
+supabase/migrations/0001_baseline_schema.sql
+```
+
+Use a preview Supabase project first. See `docs/DEPLOYMENT.md` and `docs/SUPABASE_SECURITY.md`.
 
 ## Getting Started
 

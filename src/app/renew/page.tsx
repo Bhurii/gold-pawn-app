@@ -2,8 +2,10 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
+import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
+import { uploadSlip } from '@/lib/slip-storage'
+import { errorMessage, parseNonNegativeMoney, requireDate } from '@/lib/validation'
 
 function RenewContent() {
   const router = useRouter()
@@ -62,11 +64,7 @@ function RenewContent() {
   }
 
   async function uploadImage(file: File, folder: string) {
-    const path = `${folder}/${Date.now()}.${file.name.split('.').pop()}`
-    const { error } = await supabase.storage.from('slips').upload(path, file)
-    if (error) return ''
-    const { data } = supabase.storage.from('slips').getPublicUrl(path)
-    return data.publicUrl
+    return uploadSlip(file, folder)
   }
 
   async function handleSave() {
@@ -76,8 +74,9 @@ function RenewContent() {
 
     setSaving(true)
     try {
-      const interest = parseFloat(form.interest) || 0
-      const principalPaid = parseFloat(form.principal_paid) || 0
+      const interest = parseNonNegativeMoney(form.interest, 'Interest')
+      const principalPaid = parseNonNegativeMoney(form.principal_paid, 'Principal paid')
+      const newDate = requireDate(form.new_date, 'New ticket date')
       const newAmount = pawn.amount - principalPaid
 
       if (newAmount <= 0) { alert('ยอดต้นใหม่ต้องมากกว่า 0'); setSaving(false); return }
@@ -92,7 +91,7 @@ function RenewContent() {
 
       await supabase.from('redemptions').insert({
         pawn_id: pawn.id,
-        redeem_date: form.new_date,
+        redeem_date: newDate,
         interest_last: interest,
         interest_total: interest,
         total_return: pawn.amount + interest,
@@ -103,7 +102,7 @@ function RenewContent() {
 
       const { data: newPawn, error } = await supabase.from('pawns').insert({
         ticket_no: form.new_ticket_no,
-        pawn_date: form.new_date,
+        pawn_date: newDate,
         amount: newAmount,
         pawn_slip_url: newTicketUrl,
         status: 'active',
@@ -134,8 +133,8 @@ function RenewContent() {
 
       alert(`ลดต้นสำเร็จ! ✅\nตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}`)
       router.replace(`/pawns/${newPawn.id}`)
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setSaving(false)
     }
@@ -144,8 +143,8 @@ function RenewContent() {
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
   if (!pawn) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูล</div>
 
-  const interest = parseFloat(form.interest) || 0
-  const principalPaid = parseFloat(form.principal_paid) || 0
+  const interest = Number(form.interest) || 0
+  const principalPaid = Number(form.principal_paid) || 0
   const newAmount = pawn.amount - principalPaid
 
   return (

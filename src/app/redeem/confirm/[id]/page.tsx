@@ -4,6 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { toThaiDateLong, fmt } from '@/lib/utils'
+import { errorMessage } from '@/lib/validation'
 
 export default function ConfirmRedeem() {
   const router = useRouter()
@@ -42,8 +43,8 @@ export default function ConfirmRedeem() {
       })
       alert('ยืนยันสำเร็จ! ห่านกลับบ้านแล้ว 🐣✅')
       router.replace('/')
-    } catch (e: any) {
-      alert('เกิดข้อผิดพลาด: ' + e.message)
+    } catch (e) {
+      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
     } finally {
       setConfirming(false)
     }
