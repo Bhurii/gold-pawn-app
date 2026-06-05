@@ -6,6 +6,20 @@ import { getSession } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
 import NotificationBell from '@/components/NotificationBell'
 
+type PendingRedeem = {
+  id: string
+  pawn_id: string
+  status: string
+  pawns?: { ticket_no?: string | null; amount?: number | null } | null
+}
+
+type PendingPawn = {
+  id: string
+  ticket_no: string
+  amount: number
+  tx_status: string
+}
+
 export default function Dashboard() {
   const router = useRouter()
   const user = getSession()
@@ -16,8 +30,8 @@ export default function Dashboard() {
   const [loanAmount, setLoanAmount] = useState(0)
   const [monthInterest, setMonthInterest] = useState(0)
   const [monthCount, setMonthCount] = useState(0)
-  const [pendingPawns, setPendingPawns] = useState<any[]>([])
-  const [pendingRedeems, setPendingRedeems] = useState<any[]>([])
+  const [pendingPawns, setPendingPawns] = useState<PendingPawn[]>([])
+  const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { loadDashboard() }, [])
@@ -46,10 +60,10 @@ export default function Dashboard() {
 
       if (settings) setBudget(settings.invest_budget)
       if (pawns) {
-        const activeReadyPawns = pawns.filter(p => p.tx_status === 'active')
+        const activeReadyPawns = pawns.filter((pawn) => pawn.tx_status === 'active')
         setActivePawns(activeReadyPawns.length)
         setActiveAmount(activeReadyPawns.reduce((sum, pawn) => sum + pawn.amount, 0))
-        setPendingPawns(pawns.filter(p => p.tx_status === 'pending_transfer'))
+        setPendingPawns(pawns.filter((pawn) => pawn.tx_status === 'pending_transfer'))
       }
       if (pendingR) setPendingRedeems(pendingR)
       if (loans) {
@@ -57,7 +71,8 @@ export default function Dashboard() {
         setLoanAmount(loans.reduce((sum, loan) => sum + loan.remaining_principal, 0))
       }
 
-      let totalInterest = 0, count = 0
+      let totalInterest = 0
+      let count = 0
       if (interests) { totalInterest += interests.reduce((s, i) => s + i.amount, 0); count += interests.length }
       if (redemptions) { totalInterest += redemptions.reduce((s, r) => s + (r.interest_last || 0), 0); count += redemptions.length }
       if (loanTxns) { totalInterest += loanTxns.reduce((s, t) => s + t.amount, 0); count += loanTxns.length }
@@ -72,23 +87,26 @@ export default function Dashboard() {
   const remaining = budget - totalInvested
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
+  const pendingCount = pendingPawns.length + pendingRedeems.length
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>
-      กำลังโหลด...
-    </div>
-  )
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>
+        Loading...
+      </div>
+    )
+  }
 
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 32 }}>🪿</span>
+            <span style={{ fontSize: 32 }}>🐣</span>
             <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)', letterSpacing: -0.5 }}>ห่านทองคำ</div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-            สวัสดี {user?.role === 'owner' ? '🌾 ชาวสวน' : '🪿 เจ้หลุย'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+            สวัสดี {user?.role === 'owner' ? 'เจ้าของ' : 'เจ้หลุยส์'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -97,15 +115,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Hero Card */}
       <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 22, padding: 22, marginBottom: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 14px' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>🌾 ข้าวบาร์เลย์คงเหลือ</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>เงินลงทุนคงเหลือ</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(remaining)}</div>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 14px' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>🏡 มูลค่าฟาร์ม</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>มูลค่ารวม</div>
             <div style={{ fontSize: 22, fontWeight: 800, color: '#85b7eb' }}>฿{fmt(totalInvested)}</div>
           </div>
         </div>
@@ -114,53 +131,80 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
-            { label: 'ห่านทองคำ', value: `${activePawns} ตัว`, href: '/pawns' },
-            { label: 'ต้นส้ม', value: `${activeLoans} ต้น`, href: '/loans' },
-            { label: 'ผลผลิต/ปี', value: `${roi}%`, href: '/report' },
-          ].map(s => (
-            <div key={s.label} onClick={() => router.push(s.href)}
-              style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 8px', textAlign: 'center', cursor: 'pointer' }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>{s.value}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{s.label}</div>
+            { label: 'ตั๋วใช้งาน', value: `${activePawns} ใบ`, href: '/pawns' },
+            { label: 'เงินกู้คงอยู่', value: `${activeLoans} ราย`, href: '/loans' },
+            { label: 'ผลตอบแทนต่อปี', value: `${roi}%`, href: '/report' },
+          ].map((item) => (
+            <div
+              key={item.label}
+              onClick={() => router.push(item.href)}
+              style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 8px', textAlign: 'center', cursor: 'pointer' }}
+            >
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>{item.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{item.label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ไข่เดือนนี้ */}
       <div onClick={() => router.push('/report')} className="card" style={{ marginBottom: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>🥚 ไข่เดือนนี้</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ไข่เดือนนี้</div>
           <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(monthInterest)}</div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{monthCount} รายการ</div>
         </div>
         <div style={{ fontSize: 32, color: 'var(--text-muted)' }}>›</div>
       </div>
 
-      {/* เมนู ห่านทองคำ */}
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>🪿 ห่านทองคำ</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🪺 รับฝากห่าน</button>
-        <button className="btn-secondary" onClick={() => router.push('/redeem')} style={{ fontSize: 15, padding: '16px 12px' }}>🐣 คืนห่าน</button>
-        <button className="btn-secondary" onClick={() => router.push('/interest')} style={{ fontSize: 15, padding: '16px 12px' }}>🥚 เก็บไข่</button>
-        <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px' }}>📋 ดูฝูงห่าน</button>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>ห่านทองคำ</div>
+      <div className="card" style={{ marginBottom: 14, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>สร้างใหม่ หรือจัดการของเดิม</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+              หาเบอร์ตั๋วก่อน แล้วค่อยเลือกว่าจะทำอะไรต่อจากรายการนั้น
+            </div>
+          </div>
+          <span className={pendingCount > 0 ? 'badge-pending' : 'badge-active'} style={{ whiteSpace: 'nowrap' }}>
+            {pendingCount > 0 ? `${pendingCount} งานค้าง` : 'พร้อมทำงาน'}
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
+            🪺 รับฝากห่าน
+          </button>
+          <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px' }}>
+            🔍 ค้นหา / ดูฝูงห่าน
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <button type="button" className="quick-link" onClick={() => router.push('/pawns?filter=pending_transfer')}>
+            <span>💸 รอโอนเงิน</span>
+            <strong>{pendingPawns.length}</strong>
+          </button>
+          <button type="button" className="quick-link" onClick={() => router.push('/pawns?filter=pending_confirm')}>
+            <span>🐣 รอยืนยันคืน</span>
+            <strong>{pendingRedeems.length}</strong>
+          </button>
+        </div>
       </div>
 
-      {/* เมนู ทุ่งนา */}
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>🌾 ทุ่งนา</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>ทุ่งนา</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปลูกต้นส้มใหม่</button>
-        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ดูสวนส้ม</button>
+        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปล่อยกู้ใหม่</button>
+        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ดูสินเชื่อ</button>
       </div>
 
       <div style={{ marginBottom: 14 }}>
-        <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px', width: '100%' }}>📊 ดูผลผลิต</button>
+        <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px', width: '100%' }}>
+          📊 ดูผลผลิต
+        </button>
       </div>
 
-      
-
       <nav className="bottom-nav">
-        <a href="/" className="nav-item active"><span className="nav-icon">🪿</span>หน้าแรก</a>
+        <a href="/" className="nav-item active"><span className="nav-icon">🐣</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
         <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
         <a href="/report" className="nav-item"><span className="nav-icon">📊</span>ผลผลิต</a>
