@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [activeAmount, setActiveAmount] = useState(0)
   const [activeLoans, setActiveLoans] = useState(0)
   const [loanAmount, setLoanAmount] = useState(0)
+  const [monthInterest, setMonthInterest] = useState(0)
   const [pendingPawns, setPendingPawns] = useState<PendingPawn[]>([])
   const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
   const [loading, setLoading] = useState(true)
@@ -38,16 +39,24 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
+      const now = new Date()
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
       const [
         { data: settings },
         { data: pawns },
         { data: pendingR },
         { data: loans },
+        { data: interests },
+        { data: redemptions },
+        { data: loanTxns },
       ] = await Promise.all([
         supabase.from('settings').select('invest_budget').single(),
         supabase.from('pawns').select('id, ticket_no, amount, tx_status').eq('status', 'active'),
         supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount)').eq('status', 'pending_confirm'),
         supabase.from('loans').select('id, remaining_principal').eq('status', 'active'),
+        supabase.from('interest_payments').select('amount').gte('payment_date', firstDay),
+        supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay),
+        supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay),
       ])
 
       if (settings) setBudget(settings.invest_budget)
@@ -67,6 +76,11 @@ export default function Dashboard() {
         setActiveLoans(loans.length)
         setLoanAmount(loans.reduce((sum, loan) => sum + loan.remaining_principal, 0))
       }
+      let totalInterest = 0
+      if (interests) totalInterest += interests.reduce((sum, interest) => sum + interest.amount, 0)
+      if (redemptions) totalInterest += redemptions.reduce((sum, redemption) => sum + (redemption.interest_last || 0), 0)
+      if (loanTxns) totalInterest += loanTxns.reduce((sum, txn) => sum + txn.amount, 0)
+      setMonthInterest(totalInterest)
     } finally {
       setLoading(false)
     }
