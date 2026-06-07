@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import AuthGuard from '@/components/AuthGuard'
 import PwaBootstrap from '@/components/PwaBootstrap'
+import ToastProvider from '@/components/ToastProvider'
 
 export const metadata: Metadata = {
   title: 'ห่านทองคำ',
@@ -31,8 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="th">
       <body>
         <AuthGuard>
-          <PwaBootstrap />
-          {children}
+          <ToastProvider>
+            <PwaBootstrap />
+            {children}
+          </ToastProvider>
         </AuthGuard>
       </body>
     </html>

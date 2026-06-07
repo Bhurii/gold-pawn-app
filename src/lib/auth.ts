@@ -135,7 +135,7 @@ export async function loginOwnerWithPassword(email: string, password: string): P
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error || !data.user) return { user: null, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
 
-  const { data: role } = await supabase.from('user_roles').select('*').eq('user_id', data.user.id).single()
+  const { data: role } = await supabase.from('user_roles').select('role').eq('user_id', data.user.id).single()
   if (!role || role.role !== 'owner') return { user: null, error: 'ไม่มีสิทธิ์เข้าใช้งาน' }
 
   const user: AppUser = {

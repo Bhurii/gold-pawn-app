@@ -1,7 +1,9 @@
 'use client'
+
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/components/ToastProvider'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import { uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -21,6 +23,7 @@ type InterestPayment = {
 function RedeemContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showToast } = useToast()
   const pawnIdFromUrl = searchParams.get('pawn_id')
   const [pawns, setPawns] = useState<PawnRow[]>([])
   const [selected, setSelected] = useState<PawnRow | null>(null)
@@ -38,9 +41,9 @@ function RedeemContent() {
   })
 
   useEffect(() => {
-    loadActivePawns()
+    void loadActivePawns()
     if (pawnIdFromUrl) {
-      loadPawnById(pawnIdFromUrl)
+      void loadPawnById(pawnIdFromUrl)
     }
   }, [pawnIdFromUrl])
 
@@ -57,7 +60,12 @@ function RedeemContent() {
   }
 
   async function loadActivePawns() {
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount').eq('status', 'active').eq('tx_status', 'active').order('created_at', { ascending: false })
+    const { data } = await supabase
+      .from('pawns')
+      .select('id, ticket_no, pawn_date, amount')
+      .eq('status', 'active')
+      .eq('tx_status', 'active')
+      .order('created_at', { ascending: false })
     if (data) setPawns(data as PawnRow[])
   }
 
@@ -78,7 +86,7 @@ function RedeemContent() {
 
   async function handleSave() {
     if (!selected || !form.redeem_date) {
-      alert('กรุณากรอกข้อมูลให้ครบ')
+      showToast({ tone: 'error', title: 'ข้อมูลยังไม่ครบ', message: 'กรุณากรอกข้อมูลให้ครบ' })
       return
     }
 
@@ -111,10 +119,10 @@ function RedeemContent() {
       })
       await pingPushDispatch()
 
-      alert('บันทึกสำเร็จ! รอชาวสวนยืนยัน 🐣')
+      showToast({ tone: 'success', title: 'ส่งคำขอแล้ว', message: 'รอชาวสวนยืนยันการคืนห่าน' })
       router.push('/')
     } catch (e) {
-      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
+      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
     } finally {
       setSaving(false)
     }
@@ -128,8 +136,8 @@ function RedeemContent() {
     return (
       <main className="page-container">
         <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>🐣 คืนห่าน</div>
+          <button onClick={() => router.push(selected ? `/pawns/${selected.id}` : '/pawns')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>คืนห่าน</div>
         </div>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 16 }}>กำลังโหลด...</div>
       </main>
@@ -140,23 +148,22 @@ function RedeemContent() {
     return (
       <main className="page-container">
         <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>🐣 คืนห่าน</div>
+          <button onClick={() => router.push('/pawns')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>คืนห่าน</div>
         </div>
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>เลือกห่านที่จะคืน</div>
         {pawns.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 16 }}>ไม่มีห่านในฝูง</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {pawns.map((p) => (
-              <div key={p.id} className="card" onClick={() => selectPawn(p)}
-                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>🥚</div>
+            {pawns.map((pawn) => (
+              <div key={pawn.id} className="card" onClick={() => void selectPawn(pawn)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>🐣</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 17, fontWeight: 700 }}>ตั๋ว #{p.ticket_no}</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(p.pawn_date)}</div>
+                  <div style={{ fontSize: 17, fontWeight: 700 }}>ตั๋ว #{pawn.ticket_no}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(pawn.pawn_date)}</div>
                 </div>
-                <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--gold)' }}>฿{fmt(p.amount)}</div>
+                <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--gold)' }}>฿{fmt(pawn.amount)}</div>
               </div>
             ))}
           </div>
@@ -168,8 +175,8 @@ function RedeemContent() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => pawnIdFromUrl && selected ? router.push(`/pawns/${selected.id}`) : setStep('select')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>🐣 คืนห่าน #{selected?.ticket_no}</div>
+        <button onClick={() => (pawnIdFromUrl && selected ? router.push(`/pawns/${selected.id}`) : setStep('select'))} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>คืนห่าน #{selected?.ticket_no}</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -178,7 +185,7 @@ function RedeemContent() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>Step 1/2</div>
       </div>
       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-        เจ้าหลุยอัปข้อมูล → รอชาวสวนยืนยัน
+        เจ้หลุยอัปข้อมูล → รอชาวสวนยืนยัน
       </div>
 
       <div className="panel-gold" style={{ borderRadius: 18, padding: 18, marginBottom: 16 }}>
@@ -186,7 +193,7 @@ function RedeemContent() {
         <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(selected?.amount || 0)}</div>
         {interestPayments.length > 0 && (
           <div style={{ fontSize: 13, color: 'var(--gold-light)', marginTop: 6 }}>
-            🥚 เก็บไข่แล้ว {interestPayments.length} ครั้ง รวม ฿{fmt(interestPaid)}
+            เก็บไข่แล้ว {interestPayments.length} ครั้ง รวม ฿{fmt(interestPaid)}
           </div>
         )}
       </div>
@@ -195,16 +202,16 @@ function RedeemContent() {
       {pawnPreview ? (
         <div style={{ position: 'relative', marginBottom: 14 }}>
           <img src={pawnPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 180, objectFit: 'contain', background: 'var(--black-800)', display: 'block' }} alt="pawn" />
-          <button onClick={() => { setPawnPreview(''); setPawnImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer' }}>✕</button>
+          <button onClick={() => { setPawnPreview(''); setPawnImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer' }}>×</button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-            <input type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPawnImage(f); setPawnPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+            <input type="file" accept="image/*" capture="environment" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPawnImage(file); setPawnPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
             <span style={{ fontSize: 26 }}>📷</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-            <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPawnImage(f); setPawnPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setPawnImage(file); setPawnPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
             <span style={{ fontSize: 26 }}>🖼️</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
           </label>
         </div>
@@ -214,32 +221,28 @@ function RedeemContent() {
       {transferPreview ? (
         <div style={{ position: 'relative', marginBottom: 14 }}>
           <img src={transferPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 180, objectFit: 'contain', background: 'var(--black-800)', display: 'block' }} alt="transfer" />
-          <button onClick={() => { setTransferPreview(''); setTransferImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer' }}>✕</button>
+          <button onClick={() => { setTransferPreview(''); setTransferImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer' }}>×</button>
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
           <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-            <input type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setTransferImage(f); setTransferPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+            <input type="file" accept="image/*" capture="environment" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
             <span style={{ fontSize: 26 }}>📷</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-            <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setTransferImage(f); setTransferPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+            <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
             <span style={{ fontSize: 26 }}>🖼️</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
           </label>
         </div>
       )}
 
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>3. ดอกเบี้ยงวดสุดท้าย</div>
-      <input className="input-field" type="number" placeholder="฿ จำนวนดอก"
-        value={form.interest_last} onChange={(e) => setForm({ ...form, interest_last: e.target.value })}
-        style={{ marginBottom: 12 }} />
+      <input className="input-field" type="number" placeholder="฿ จำนวนดอก" value={form.interest_last} onChange={(e) => setForm({ ...form, interest_last: e.target.value })} style={{ marginBottom: 12 }} />
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>วันที่คืนห่าน</div>
-      <input className="input-field" type="date"
-        value={form.redeem_date} onChange={(e) => setForm({ ...form, redeem_date: e.target.value })}
-        style={{ marginBottom: 16 }} />
+      <input className="input-field" type="date" value={form.redeem_date} onChange={(e) => setForm({ ...form, redeem_date: e.target.value })} style={{ marginBottom: 16 }} />
 
       <div className="card" style={{ background: '#0A0A0A', borderRadius: 16, padding: 18, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>🥚 สรุปไข่ทั้งหมด</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>สรุปไข่ทั้งหมด</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
           <span>เก็บไข่แล้ว</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestPaid)}</span>
         </div>
@@ -253,7 +256,7 @@ function RedeemContent() {
       </div>
 
       <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-        {saving ? 'กำลังบันทึก...' : '🐣 ส่งให้ชาวสวนยืนยัน'}
+        {saving ? 'กำลังบันทึก...' : 'ส่งให้ชาวสวนยืนยัน'}
       </button>
       <div style={{ height: 32 }} />
     </main>

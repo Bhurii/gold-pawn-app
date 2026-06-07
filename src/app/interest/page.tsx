@@ -1,7 +1,9 @@
 'use client'
+
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/components/ToastProvider'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
@@ -16,6 +18,7 @@ type PawnRow = {
 function InterestContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showToast } = useToast()
   const pawnIdFromUrl = searchParams.get('pawn_id')
   const [pawns, setPawns] = useState<PawnRow[]>([])
   const [selected, setSelected] = useState<PawnRow | null>(null)
@@ -30,7 +33,7 @@ function InterestContent() {
   })
 
   useEffect(() => {
-    loadPawns()
+    void loadPawns()
   }, [pawnIdFromUrl])
 
   async function loadPawns() {
@@ -59,9 +62,21 @@ function InterestContent() {
     setLoadingPawns(false)
   }
 
+  function handleFile(file: File | undefined) {
+    if (!file) return
+
+    try {
+      assertImageFile(file)
+      setImage(file)
+      setPreview(URL.createObjectURL(file))
+    } catch (err) {
+      showToast({ tone: 'error', title: 'รูปภาพใช้ไม่ได้', message: errorMessage(err) })
+    }
+  }
+
   async function handleSave() {
     if (!selected || !form.amount || !form.payment_date) {
-      alert('กรุณาเลือกตั๋วและกรอกข้อมูลให้ครบ')
+      showToast({ tone: 'error', title: 'ข้อมูลยังไม่ครบ', message: 'กรุณาเลือกตั๋วและกรอกข้อมูลให้ครบ' })
       return
     }
 
@@ -69,13 +84,13 @@ function InterestContent() {
     try {
       const amount = parsePositiveMoney(form.amount, 'Interest amount')
       const paymentDate = requireDate(form.payment_date, 'Payment date')
-      const slip_url = image ? await uploadSlip(image, 'interest') : ''
+      const slipUrl = image ? await uploadSlip(image, 'interest') : ''
 
       await supabase.from('interest_payments').insert({
         pawn_id: selected.id,
         payment_date: paymentDate,
         amount,
-        slip_url,
+        slip_url: slipUrl,
         note: form.note,
       })
 
@@ -85,20 +100,22 @@ function InterestContent() {
         pawn_id: selected.id,
       })
 
-      alert('บันทึกการตัดดอกสำเร็จ!')
+      showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'บันทึกการเก็บไข่เรียบร้อยแล้ว' })
       router.push(`/pawns/${selected.id}`)
     } catch (e) {
-      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
+      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
     } finally {
       setSaving(false)
     }
   }
 
+  const backTarget = selected ? `/pawns/${selected.id}` : '/pawns'
+
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>ตัดดอกเบี้ย</div>
+        <button onClick={() => router.push(backTarget)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>เก็บไข่</div>
       </div>
 
       {loadingPawns ? (
@@ -109,10 +126,10 @@ function InterestContent() {
             <>
               <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 10, fontWeight: 600 }}>เลือกตั๋วจำนำ</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                {pawns.map((p) => (
+                {pawns.map((pawn) => (
                   <div
-                    key={p.id}
-                    onClick={() => setSelected(p)}
+                    key={pawn.id}
+                    onClick={() => setSelected(pawn)}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -120,17 +137,17 @@ function InterestContent() {
                       padding: '14px 16px',
                       borderRadius: 16,
                       cursor: 'pointer',
-                      border: `1px solid ${selected?.id === p.id ? 'var(--gold)' : 'var(--border)'}`,
-                      background: selected?.id === p.id ? 'rgba(242,201,76,0.1)' : 'var(--black-800)',
+                      border: `1px solid ${selected?.id === pawn.id ? 'var(--gold)' : 'var(--border)'}`,
+                      background: selected?.id === pawn.id ? 'rgba(242,201,76,0.1)' : 'var(--black-800)',
                     }}
                   >
-                    <span style={{ fontSize: 22 }}>💍</span>
+                    <span style={{ fontSize: 22 }}>🥚</span>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 16, fontWeight: 700 }}>ตั๋ว #{p.ticket_no}</div>
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(p.pawn_date)}</div>
+                      <div style={{ fontSize: 16, fontWeight: 700 }}>ตั๋ว #{pawn.ticket_no}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(pawn.pawn_date)}</div>
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>฿{fmt(p.amount)}</div>
-                    {selected?.id === p.id && <span style={{ fontSize: 18, color: 'var(--gold)' }}>✓</span>}
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>฿{fmt(pawn.amount)}</div>
+                    {selected?.id === pawn.id && <span style={{ fontSize: 18, color: 'var(--gold)' }}>✓</span>}
                   </div>
                 ))}
               </div>
@@ -139,7 +156,7 @@ function InterestContent() {
 
           {pawnIdFromUrl && selected && (
             <div style={{ background: 'rgba(242,201,76,0.08)', border: '1px solid rgba(242,201,76,0.24)', borderRadius: 16, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-              <span style={{ fontSize: 22 }}>💍</span>
+              <span style={{ fontSize: 22 }}>🥚</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>ตั๋ว #{selected.ticket_no}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(selected.pawn_date)}</div>
@@ -152,31 +169,28 @@ function InterestContent() {
             <>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>จำนวนดอกเบี้ย (บาท)</div>
-                <input className="input-field" type="number" placeholder="เช่น 600"
-                  value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+                <input className="input-field" type="number" placeholder="เช่น 600" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่ตัดดอก</div>
-                <input className="input-field" type="date"
-                  value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
+                <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่เก็บไข่</div>
+                <input className="input-field" type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
               </div>
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>สลิปโอนเงิน</div>
                 {preview ? (
                   <div style={{ position: 'relative' }}>
                     <img src={preview} style={{ width: '100%', borderRadius: 14, maxHeight: 200, objectFit: 'contain', background: 'var(--black-700)' }} alt="slip" />
-                    <button onClick={() => { setPreview(''); setImage(null) }}
-                      style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>✕</button>
+                    <button onClick={() => { setPreview(''); setImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '18px 12px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                      <input type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) { try { assertImageFile(f); setImage(f); setPreview(URL.createObjectURL(f)) } catch (err) { alert(errorMessage(err)); e.currentTarget.value = '' } } }} style={{ display: 'none' }} />
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => handleFile(e.target.files?.[0])} style={{ display: 'none' }} />
                       <span style={{ fontSize: 30 }}>📷</span>
                       <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 15 }}>ถ่ายรูป</span>
                     </label>
                     <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '18px 12px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                      <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { try { assertImageFile(f); setImage(f); setPreview(URL.createObjectURL(f)) } catch (err) { alert(errorMessage(err)); e.currentTarget.value = '' } } }} style={{ display: 'none' }} />
+                      <input type="file" accept="image/*" onChange={(e) => handleFile(e.target.files?.[0])} style={{ display: 'none' }} />
                       <span style={{ fontSize: 30 }}>🖼️</span>
                       <span style={{ color: 'var(--gold)', fontWeight: 600, fontSize: 15 }}>เลือกจากคลัง</span>
                     </label>
@@ -185,11 +199,10 @@ function InterestContent() {
               </div>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>หมายเหตุ (ถ้ามี)</div>
-                <input className="input-field" placeholder="เช่น ตัดดอกเดือน เม.ย. 68"
-                  value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+                <input className="input-field" placeholder="เช่น เก็บไข่เดือนนี้" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </div>
               <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-                {saving ? 'กำลังบันทึก...' : '✂️ บันทึกการตัดดอก'}
+                {saving ? 'กำลังบันทึก...' : 'บันทึกการเก็บไข่'}
               </button>
             </>
           )}

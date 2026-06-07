@@ -1,7 +1,9 @@
 'use client'
+
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { useToast } from '@/components/ToastProvider'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { uploadSlip } from '@/lib/slip-storage'
@@ -22,12 +24,12 @@ type OcrTicketData = {
   amount?: number
   date_confidence?: 'clear' | 'suggested' | 'unknown'
   date_note?: string
-  notes?: string
 }
 
 function RenewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { showToast } = useToast()
   const pawnIdFromUrl = searchParams.get('pawn_id')
 
   const [pawn, setPawn] = useState<PawnRow | null>(null)
@@ -50,7 +52,9 @@ function RenewContent() {
   })
 
   useEffect(() => {
-    if (pawnIdFromUrl) loadPawn(pawnIdFromUrl)
+    if (pawnIdFromUrl) {
+      void loadPawn(pawnIdFromUrl)
+    }
   }, [pawnIdFromUrl])
 
   async function loadPawn(id: string) {
@@ -126,15 +130,15 @@ function RenewContent() {
   async function handleSave() {
     if (!pawn) return
     if (!form.new_ticket_no) {
-      alert('กรุณาใส่เลขตั๋วใหม่')
+      showToast({ tone: 'error', title: 'ข้อมูลยังไม่ครบ', message: 'กรุณาใส่เลขตั๋วใหม่' })
       return
     }
     if (!form.interest && !form.principal_paid) {
-      alert('กรุณาใส่ยอดดอกหรือยอดต้น')
+      showToast({ tone: 'error', title: 'ข้อมูลยังไม่ครบ', message: 'กรุณาใส่ยอดดอกหรือยอดต้น' })
       return
     }
     if (!dateConfirmed) {
-      alert('กรุณายืนยันหรือแก้วันที่ของตั๋วใหม่ก่อนบันทึก')
+      showToast({ tone: 'error', title: 'ต้องยืนยันวันที่ก่อน', message: 'กรุณายืนยันหรือแก้วันที่ของตั๋วใหม่ก่อนบันทึก' })
       return
     }
 
@@ -146,7 +150,7 @@ function RenewContent() {
       const newAmount = pawn.amount - principalPaid
 
       if (newAmount <= 0) {
-        alert('ยอดต้นใหม่ต้องมากกว่า 0')
+        showToast({ tone: 'error', title: 'ยอดไม่ถูกต้อง', message: 'ยอดต้นใหม่ต้องมากกว่า 0' })
         setSaving(false)
         return
       }
@@ -202,10 +206,10 @@ function RenewContent() {
       })
       await pingPushDispatch()
 
-      alert(`ลดต้นสำเร็จ!\nตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}`)
+      showToast({ tone: 'success', title: 'ลดต้นสำเร็จ', message: `ตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}` })
       router.replace(`/pawns/${newPawn.id}`)
     } catch (e) {
-      alert('เกิดข้อผิดพลาด: ' + errorMessage(e))
+      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
     } finally {
       setSaving(false)
     }
@@ -223,8 +227,8 @@ function RenewContent() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>📋 ลดต้น</div>
+        <button onClick={() => router.push(`/pawns/${pawn.id}`)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>ลดต้น</div>
       </div>
 
       <div className="panel-gold" style={{ borderRadius: 18, padding: 18, marginBottom: 16 }}>
@@ -238,14 +242,12 @@ function RenewContent() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>ยอดต้นที่ลด (บาท)</div>
-          <input className="input-field" type="number" placeholder="เช่น 5000"
-            value={form.principal_paid} onChange={(e) => setForm({ ...form, principal_paid: e.target.value })} />
+          <input className="input-field" type="number" placeholder="เช่น 5000" value={form.principal_paid} onChange={(e) => setForm({ ...form, principal_paid: e.target.value })} />
         </div>
 
         <div>
           <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>ดอกเบี้ยที่เคลียร์ใบเก่า (บาท)</div>
-          <input className="input-field" type="number" placeholder="เช่น 600"
-            value={form.interest} onChange={(e) => setForm({ ...form, interest: e.target.value })} />
+          <input className="input-field" type="number" placeholder="เช่น 600" value={form.interest} onChange={(e) => setForm({ ...form, interest: e.target.value })} />
         </div>
 
         <div>
@@ -253,17 +255,17 @@ function RenewContent() {
           {newTicketPreview ? (
             <div style={{ position: 'relative', marginBottom: 10 }}>
               <img src={newTicketPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 200, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} alt="new ticket" />
-              <button onClick={() => { setNewTicketPreview(''); setNewTicketImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>✕</button>
+              <button onClick={() => { setNewTicketPreview(''); setNewTicketImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
               {scanning && <div style={{ textAlign: 'center', color: 'var(--gold)', fontSize: 13, marginTop: 6 }}>AI กำลังอ่านข้อมูลตั๋วใหม่...</div>}
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
               <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                <input type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setNewTicketImage(f); setNewTicketPreview(URL.createObjectURL(f)); scanNewTicket(f) } }} style={{ display: 'none' }} />
+                <input type="file" accept="image/*" capture="environment" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setNewTicketImage(file); setNewTicketPreview(URL.createObjectURL(file)); void scanNewTicket(file) } }} style={{ display: 'none' }} />
                 <span style={{ fontSize: 26 }}>📷</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setNewTicketImage(f); setNewTicketPreview(URL.createObjectURL(f)); scanNewTicket(f) } }} style={{ display: 'none' }} />
+                <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setNewTicketImage(file); setNewTicketPreview(URL.createObjectURL(file)); void scanNewTicket(file) } }} style={{ display: 'none' }} />
                 <span style={{ fontSize: 26 }}>🖼️</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
               </label>
             </div>
@@ -272,8 +274,7 @@ function RenewContent() {
 
         <div>
           <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>เลขตั๋วใหม่</div>
-          <input className="input-field" placeholder="AI จะอ่านให้ หรือกรอกเอง"
-            value={form.new_ticket_no} onChange={(e) => setForm({ ...form, new_ticket_no: e.target.value })} />
+          <input className="input-field" placeholder="AI จะอ่านให้ หรือกรอกเอง" value={form.new_ticket_no} onChange={(e) => setForm({ ...form, new_ticket_no: e.target.value })} />
         </div>
 
         <ThaiDatePicker
@@ -327,16 +328,16 @@ function RenewContent() {
           {transferPreview ? (
             <div style={{ position: 'relative' }}>
               <img src={transferPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 180, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} alt="slip" />
-              <button onClick={() => { setTransferPreview(''); setTransferImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>✕</button>
+              <button onClick={() => { setTransferPreview(''); setTransferImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                <input type="file" accept="image/*" capture="environment" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setTransferImage(f); setTransferPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+                <input type="file" accept="image/*" capture="environment" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
                 <span style={{ fontSize: 26 }}>📷</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setTransferImage(f); setTransferPreview(URL.createObjectURL(f)) } }} style={{ display: 'none' }} />
+                <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
                 <span style={{ fontSize: 26 }}>🖼️</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
               </label>
             </div>
@@ -351,7 +352,7 @@ function RenewContent() {
 
       <div style={{ marginTop: 24 }}>
         <button className="btn-primary" onClick={handleSave} disabled={saving || newAmount <= 0 || !dateConfirmed} style={{ fontSize: 18 }}>
-          {saving ? 'กำลังบันทึก...' : `📋 ยืนยันลดต้น -> ตั๋วใหม่ ฿${fmt(Math.max(newAmount, 0))}`}
+          {saving ? 'กำลังบันทึก...' : `ยืนยันลดต้น -> ตั๋วใหม่ ฿${fmt(Math.max(newAmount, 0))}`}
         </button>
       </div>
       <div style={{ height: 32 }} />
