@@ -259,6 +259,39 @@ body {
   color: var(--gold);
 }
 
+.context-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(242,201,76,0.2);
+  background: rgba(242,201,76,0.06);
+}
+
+.context-banner strong {
+  color: var(--gold-light);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.context-banner span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.context-banner button {
+  border: none;
+  background: transparent;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .value-primary { color: var(--gold); }
 .value-secondary { color: var(--gold-light); }
 .value-muted { color: var(--gold-soft); }

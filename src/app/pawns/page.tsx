@@ -27,6 +27,12 @@ export default function PawnList() {
   const [filter, setFilter] = useState<'all' | 'active' | 'redeemed' | 'pending_transfer' | 'pending_confirm'>(initialFilter)
   const [search, setSearch] = useState(searchParams.get('search') || '')
 
+  const specialFilterMeta = filter === 'pending_transfer'
+    ? { title: 'รอโอนเงิน', detail: 'กำลังดูรายการที่ยังรอโอนเงินเข้าอยู่' }
+    : filter === 'pending_confirm'
+      ? { title: 'รอยืนยันคืน', detail: 'กำลังดูรายการที่รอยืนยันการคืนห่าน' }
+      : null
+
   useEffect(() => { loadPawns() }, [])
 
   async function loadPawns() {
@@ -71,6 +77,11 @@ export default function PawnList() {
     return { className: 'badge-redeemed', label: 'ไถ่ถอนไปแล้ว' }
   }
 
+  function clearSpecialFilter() {
+    setFilter('all')
+    router.replace(search.trim() ? `/pawns?search=${encodeURIComponent(search.trim())}` : '/pawns')
+  }
+
   return (
     <main className="page-container">
       <div style={{ padding: '52px 0 16px' }}>
@@ -101,6 +112,15 @@ export default function PawnList() {
             </button>
           ))}
         </div>
+        {specialFilterMeta && (
+          <div className="context-banner">
+            <div>
+              <strong>กำลังดู: {specialFilterMeta.title}</strong>
+              <div><span>{specialFilterMeta.detail}</span></div>
+            </div>
+            <button type="button" onClick={clearSpecialFilter}>ดูทั้งหมด</button>
+          </div>
+        )}
       </div>
 
       {loading ? (
