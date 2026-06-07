@@ -55,7 +55,7 @@ export default function NewLoan() {
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>ปล่อยกู้ใหม่</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>ปลูกต้นไม้เพิ่ม</div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

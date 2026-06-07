@@ -104,7 +104,7 @@ export default function Settings() {
                   <nav className="bottom-nav">
         <a href="/" className="nav-item"><span className="nav-icon">🪿</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
+        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
         <a href="/report" className="nav-item active"><span className="nav-icon">📊</span>ผลผลิต</a>
       </nav>
       <div style={{ height: 32 }} />

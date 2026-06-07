@@ -136,7 +136,7 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
-            { label: 'ตั๋วใช้งาน', value: `${activePawns} ใบ`, href: '/pawns' },
+            { label: 'ตั๋วใช้งาน', value: `${activePawns} ใบ`, href: '/pawns?filter=active' },
             { label: 'เงินกู้คงอยู่', value: `${activeLoans} ราย`, href: '/loans' },
             { label: 'ผลตอบแทนต่อปี', value: `${roi}%`, href: '/report' },
           ].map((item) => (
@@ -196,10 +196,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>ทุ่งนา</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>สวนผลไม้</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปล่อยกู้ใหม่</button>
-        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ดูสินเชื่อ</button>
+        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปลูกต้นไม้เพิ่ม</button>
+        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ชมสวนผลไม้</button>
       </div>
 
       <div style={{ marginBottom: 14 }}>
@@ -211,7 +211,7 @@ export default function Dashboard() {
       <nav className="bottom-nav">
         <a href="/" className="nav-item active"><span className="nav-icon">🐣</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
+        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
         <a href="/report" className="nav-item"><span className="nav-icon">📊</span>ผลผลิต</a>
       </nav>
     </main>

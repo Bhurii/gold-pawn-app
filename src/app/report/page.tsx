@@ -316,7 +316,7 @@ export default function Report() {
               style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
               <span style={{ fontSize: 28 }}>🍊</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>ผลส้มจากทุ่งนา</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>ผลผลิตจากสวนผลไม้</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{data.loanCount} รายการ</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -361,7 +361,7 @@ export default function Report() {
       <nav className="bottom-nav">
         <a href="/" className="nav-item"><span className="nav-icon">🐣</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
+        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
         <a href="/report" className="nav-item active"><span className="nav-icon">📊</span>ผลผลิต</a>
       </nav>
       <div style={{ height: 32 }} />

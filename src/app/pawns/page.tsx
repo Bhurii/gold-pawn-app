@@ -21,7 +21,7 @@ export default function PawnList() {
   const [pawns, setPawns] = useState<PawnRow[]>([])
   const [loading, setLoading] = useState(true)
   const filterFromUrl = searchParams.get('filter')
-  const initialFilter = filterFromUrl === 'pending_transfer' || filterFromUrl === 'pending_confirm'
+  const initialFilter = filterFromUrl === 'pending_transfer' || filterFromUrl === 'pending_confirm' || filterFromUrl === 'active' || filterFromUrl === 'redeemed'
     ? filterFromUrl
     : 'all'
   const [filter, setFilter] = useState<'all' | 'active' | 'redeemed' | 'pending_transfer' | 'pending_confirm'>(initialFilter)
@@ -66,10 +66,8 @@ export default function PawnList() {
 
   function getBadge(pawn: PawnRow) {
     const adjusted = adjustedMap.get(pawn.id)
-    if (pawn.tx_status === 'pending_transfer') return { className: 'badge-pending', label: 'รอโอน' }
-    if (pawn.tx_status === 'pending_redeem') return { className: 'badge-pending', label: 'รอยืนยัน' }
     if (pawn.status === 'active') return { className: 'badge-active', label: 'จำนำอยู่' }
-    if (adjusted) return { className: 'badge-pending', label: adjusted.type === 'topup' ? 'เพิ่มยอดแล้ว' : 'ลดต้นแล้ว' }
+    if (adjusted) return { className: 'badge-redeemed', label: 'ไถ่ถอนแล้ว' }
     return { className: 'badge-redeemed', label: 'ไถ่ถอนไปแล้ว' }
   }
 
@@ -96,8 +94,7 @@ export default function PawnList() {
           {([
             ['all', 'ทั้งหมด'],
             ['active', 'จำนำอยู่'],
-            ['pending_transfer', 'รอโอนเงิน'],
-            ['pending_confirm', 'รอยืนยันคืน'],
+            ['redeemed', 'ไถ่ถอนแล้ว'],
           ] as const).map(([value, label]) => (
             <button key={value} onClick={() => setFilter(value)} className="filter-chip" data-active={filter === value} type="button">
               {label}
@@ -163,7 +160,7 @@ export default function PawnList() {
       <nav className="bottom-nav">
         <a href="/" className="nav-item"><span className="nav-icon">🐣</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item active"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
+        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
         <a href="/report" className="nav-item"><span className="nav-icon">📊</span>ผลผลิต</a>
       </nav>
     </main>
