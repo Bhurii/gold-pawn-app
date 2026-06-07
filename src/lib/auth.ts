@@ -23,11 +23,13 @@ function isAppUser(value: unknown): value is AppUser {
 export function getSession(): AppUser | null {
   if (typeof window === 'undefined') return null
   try {
-    const s = sessionStorage.getItem(SESSION_KEY)
-    if (!s) return null
-    const parsed = JSON.parse(s)
+    const session = sessionStorage.getItem(SESSION_KEY)
+    if (!session) return null
+    const parsed = JSON.parse(session)
     return isAppUser(parsed) ? parsed : null
-  } catch { return null }
+  } catch {
+    return null
+  }
 }
 
 export function setSession(user: AppUser) {
@@ -41,14 +43,16 @@ export function clearSession() {
   void supabase.auth.signOut()
 }
 
-export async function loginOwner(email: string, password: string): Promise<{ user: AppUser | null, error: string | null }> {
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-  if (error || !data.user) return { user: null, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
+export async function loginOwner(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
+  const { data: settings } = await supabase.from('settings').select('owner_pin').single()
+  if (!settings?.owner_pin) {
+    return { user: null, error: 'ยังไม่ได้ตั้ง PIN เจ้าของ กรุณาเข้าไปตั้งในหน้าตั้งค่าก่อน' }
+  }
+  if (settings.owner_pin !== pin) {
+    return { user: null, error: 'PIN เจ้าของไม่ถูกต้อง' }
+  }
 
-  const { data: role } = await supabase.from('user_roles').select('*').eq('user_id', data.user.id).single()
-  if (!role || role.role !== 'owner') return { user: null, error: 'ไม่มีสิทธิ์เข้าใช้งาน' }
-
-  const user: AppUser = { id: data.user.id, role: 'owner', display_name: role.display_name || 'เจ้าของ', auth_type: 'email' }
+  const user: AppUser = { id: 'owner', role: 'owner', display_name: 'เจ้าของ', auth_type: 'pin' }
   setSession(user)
   return { user, error: null }
 }
