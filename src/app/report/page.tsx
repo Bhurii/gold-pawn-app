@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 
-const MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
+const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
 type ReportState = {
   pawnInterest: number
@@ -18,19 +18,19 @@ type ReportState = {
 type PawnInterestRow = {
   amount: number
   payment_date: string
-  pawns?: { ticket_no?: string } | null
+  pawns?: { ticket_no?: string } | Array<{ ticket_no?: string }> | null
 }
 
 type RedemptionRow = {
   interest_last: number | null
   redeem_date: string
-  pawns?: { ticket_no?: string } | null
+  pawns?: { ticket_no?: string } | Array<{ ticket_no?: string }> | null
 }
 
 type LoanInterestRow = {
   amount: number
   transaction_date: string
-  loans?: { borrower_name?: string } | null
+  loans?: { borrower_name?: string } | Array<{ borrower_name?: string }> | null
 }
 
 type PawnDetail = {
@@ -46,6 +46,8 @@ type LoanDetail = {
   date: string
 }
 
+type SelectedPeriod = number | 'all'
+
 function getDateRangeForYear(year: number) {
   return {
     firstDay: `${year}-01-01`,
@@ -57,9 +59,14 @@ function getMonthIndex(dateStr: string) {
   return new Date(`${dateStr}T00:00:00`).getMonth()
 }
 
+function relationFirst<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) return value[0]
+  return value || null
+}
+
 export default function Report() {
   const router = useRouter()
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
+  const [selectedPeriod, setSelectedPeriod] = useState<SelectedPeriod>(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [data, setData] = useState<ReportState>({ pawnInterest: 0, loanInterest: 0, budget: 0, pawned: 0, pawnCount: 0, loanCount: 0 })
   const [pawnDetails, setPawnDetails] = useState<PawnDetail[]>([])
@@ -75,7 +82,7 @@ export default function Report() {
   const [yearLoanTxns, setYearLoanTxns] = useState<LoanInterestRow[]>([])
 
   useEffect(() => { loadYearData() }, [selectedYear])
-  useEffect(() => { buildMonthData() }, [selectedMonth, yearBudget, yearPawned, yearInterests, yearRedemptions, yearLoanTxns])
+  useEffect(() => { buildPeriodData() }, [selectedPeriod, yearBudget, yearPawned, yearInterests, yearRedemptions, yearLoanTxns])
 
   async function loadYearData() {
     setLoading(true)
@@ -96,7 +103,7 @@ export default function Report() {
     setYearLoanTxns((loanTxns || []) as LoanInterestRow[])
   }
 
-  function buildMonthData() {
+  function buildPeriodData() {
     const nextMonthly = Array(12).fill(0)
     const nextPawnDetails: PawnDetail[] = []
     const nextLoanDetails: LoanDetail[] = []
@@ -107,10 +114,10 @@ export default function Report() {
       const month = getMonthIndex(interest.payment_date)
       nextMonthly[month] += interest.amount
 
-      if (month === selectedMonth) {
+      if (selectedPeriod === 'all' || month === selectedPeriod) {
         pawnInterest += interest.amount
         nextPawnDetails.push({
-          ticket: interest.pawns?.ticket_no,
+          ticket: relationFirst(interest.pawns)?.ticket_no,
           amount: interest.amount,
           date: interest.payment_date,
           type: 'ตัดดอก',
@@ -123,10 +130,10 @@ export default function Report() {
       const month = getMonthIndex(redemption.redeem_date)
       nextMonthly[month] += amount
 
-      if (month === selectedMonth) {
+      if (selectedPeriod === 'all' || month === selectedPeriod) {
         pawnInterest += amount
         nextPawnDetails.push({
-          ticket: redemption.pawns?.ticket_no,
+          ticket: relationFirst(redemption.pawns)?.ticket_no,
           amount,
           date: redemption.redeem_date,
           type: 'ไถ่ถอน',
@@ -138,10 +145,10 @@ export default function Report() {
       const month = getMonthIndex(txn.transaction_date)
       nextMonthly[month] += txn.amount
 
-      if (month === selectedMonth) {
+      if (selectedPeriod === 'all' || month === selectedPeriod) {
         loanInterest += txn.amount
         nextLoanDetails.push({
-          name: txn.loans?.borrower_name,
+          name: relationFirst(txn.loans)?.borrower_name,
           amount: txn.amount,
           date: txn.transaction_date,
         })
@@ -163,17 +170,24 @@ export default function Report() {
   }
 
   const totalInterest = data.pawnInterest + data.loanInterest
-  const roiMonthly = data.budget > 0 ? ((totalInterest / data.budget) * 100).toFixed(2) : '0.00'
-  const roiAnnual = data.budget > 0 ? ((totalInterest / data.budget) * 12 * 100).toFixed(1) : '0.0'
+  const roiCurrent = data.budget > 0 ? ((totalInterest / data.budget) * 100).toFixed(2) : '0.00'
+  const roiAnnual = data.budget > 0 ? ((totalInterest / data.budget) * (selectedPeriod === 'all' ? 100 : 12 * 100)).toFixed(selectedPeriod === 'all' ? 2 : 1) : (selectedPeriod === 'all' ? '0.00' : '0.0')
   const maxBar = Math.max(...monthlyData, 1)
+  const isYearView = selectedPeriod === 'all'
+  const periodLabel = isYearView ? `ทั้งปี ${selectedYear + 543}` : `${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`
+  const currentRoiLabel = isYearView ? 'ROI ทั้งปี' : 'ROI เดือนนี้'
+  const annualRoiLabel = isYearView ? 'เฉลี่ยต่อเดือน' : 'ROI ต่อปี'
+  const annualRoiValue = isYearView
+    ? (data.budget > 0 ? ((totalInterest / data.budget) * 100 / 12).toFixed(2) : '0.00')
+    : roiAnnual
 
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
-        <select value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}
+        <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
           className="input-field" style={{ width: 'auto', padding: '8px 14px', fontSize: 15 }}>
-          {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y + 543}</option>)}
+          {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y + 543}</option>)}
         </select>
       </div>
 
@@ -181,23 +195,25 @@ export default function Report() {
         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 14 }}>🥚 ไข่รายเดือน พ.ศ. {selectedYear + 543}</div>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80, marginBottom: 8 }}>
           {monthlyData.map((val, i) => (
-            <div key={i} onClick={() => setSelectedMonth(i)}
+            <div key={i} onClick={() => setSelectedPeriod(i)}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
               <div style={{
                 width: '100%', borderRadius: '4px 4px 0 0',
                 height: `${Math.max((val / maxBar) * 70, val > 0 ? 6 : 2)}px`,
-                background: i === selectedMonth
-                  ? 'linear-gradient(180deg,#F2C94C,#C9922A)'
-                  : val > 0 ? 'rgba(242,201,76,0.4)' : 'rgba(255,255,255,0.08)',
-                transition: 'height 0.3s'
+                background: isYearView
+                  ? (val > 0 ? 'rgba(242,201,76,0.7)' : 'rgba(255,255,255,0.08)')
+                  : i === selectedPeriod
+                    ? 'linear-gradient(180deg,#F2C94C,#C9922A)'
+                    : val > 0 ? 'rgba(242,201,76,0.4)' : 'rgba(255,255,255,0.08)',
+                transition: 'height 0.3s',
               }} />
             </div>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
           {MONTHS_SHORT.map((m, i) => (
-            <div key={i} onClick={() => setSelectedMonth(i)}
-              style={{ flex: 1, textAlign: 'center', fontSize: 9, color: i === selectedMonth ? 'var(--gold)' : 'var(--text-muted)', fontWeight: i === selectedMonth ? 700 : 400, cursor: 'pointer' }}>
+            <div key={i} onClick={() => setSelectedPeriod(i)}
+              style={{ flex: 1, textAlign: 'center', fontSize: 9, color: !isYearView && i === selectedPeriod ? 'var(--gold)' : 'var(--text-muted)', fontWeight: !isYearView && i === selectedPeriod ? 700 : 400, cursor: 'pointer' }}>
               {m.replace('.', '')}
             </div>
           ))}
@@ -205,8 +221,9 @@ export default function Report() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
-        <select value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}
+        <select value={isYearView ? 'all' : String(selectedPeriod)} onChange={(e) => setSelectedPeriod(e.target.value === 'all' ? 'all' : Number(e.target.value))}
           className="input-field" style={{ flex: 1, padding: '10px 14px', fontSize: 15 }}>
+          <option value="all">ทั้งปี</option>
           {MONTHS_SHORT.map((m, i) => <option key={i} value={i}>{m}</option>)}
         </select>
         <div style={{ fontSize: 14, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>พ.ศ. {selectedYear + 543}</div>
@@ -217,16 +234,16 @@ export default function Report() {
       ) : (
         <>
           <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 20, padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🥚 ไข่ทั้งหมด {MONTHS_SHORT[selectedMonth]} {selectedYear + 543}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🥚 ไข่ทั้งหมด {periodLabel}</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(totalInterest)}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
               <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>ROI เดือนนี้</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{roiMonthly}%</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{currentRoiLabel}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{roiCurrent}%</div>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>ROI ต่อปี</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{roiAnnual}%</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{annualRoiLabel}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{annualRoiValue}%</div>
               </div>
             </div>
           </div>
@@ -234,7 +251,7 @@ export default function Report() {
           <div className="card" style={{ marginBottom: 12 }}>
             <div onClick={() => setExpandPawn(!expandPawn)}
               style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-              <span style={{ fontSize: 28 }}>🪿</span>
+              <span style={{ fontSize: 28 }}>🥚</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>ไข่จากห่านทองคำ</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{data.pawnCount} รายการ</div>
@@ -260,7 +277,9 @@ export default function Report() {
               </div>
             )}
             {expandPawn && pawnDetails.length === 0 && (
-              <div style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: 14, textAlign: 'center' }}>ไม่มีรายการเดือนนี้</div>
+              <div style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: 14, textAlign: 'center' }}>
+                {isYearView ? 'ไม่มีรายการในปีนี้' : 'ไม่มีรายการเดือนนี้'}
+              </div>
             )}
           </div>
 
@@ -292,7 +311,9 @@ export default function Report() {
               </div>
             )}
             {expandLoan && loanDetails.length === 0 && (
-              <div style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: 14, textAlign: 'center' }}>ไม่มีรายการเดือนนี้</div>
+              <div style={{ marginTop: 12, color: 'var(--text-muted)', fontSize: 14, textAlign: 'center' }}>
+                {isYearView ? 'ไม่มีรายการในปีนี้' : 'ไม่มีรายการเดือนนี้'}
+              </div>
             )}
           </div>
 
@@ -310,7 +331,7 @@ export default function Report() {
       )}
 
       <nav className="bottom-nav">
-        <a href="/" className="nav-item"><span className="nav-icon">🪿</span>หน้าแรก</a>
+        <a href="/" className="nav-item"><span className="nav-icon">🥚</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
         <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
         <a href="/report" className="nav-item active"><span className="nav-icon">📊</span>ผลผลิต</a>
