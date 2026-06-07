@@ -91,14 +91,14 @@ export default function Login() {
           onClick={() => resetForm('owner')}
           style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s', background: mode === 'owner' ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent', color: mode === 'owner' ? '#080808' : 'var(--text-muted)' }}
         >
-          เจ้าของ
+          โทนี่
         </button>
       </div>
 
       {(showAgentPin || showOwnerPin) && (
         <div style={{ width: '100%', maxWidth: 320, textAlign: 'center' }}>
           <div style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 24 }}>
-            {mode === 'owner' ? 'กรอก PIN เจ้าของ 6 หลัก' : 'กรอก PIN 6 หลัก'}
+            {mode === 'owner' ? 'กรอก PIN โทนี่ 6 หลัก' : 'กรอก PIN 6 หลัก'}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 32 }}>
@@ -162,7 +162,7 @@ export default function Login() {
             <input
               className="input-field"
               type="email"
-              placeholder="อีเมลเจ้าของ"
+              placeholder="อีเมลโทนี่"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />

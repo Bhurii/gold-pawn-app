@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
-import PushPrompt from '@/components/PushPrompt'
 import NotificationBell from '@/components/NotificationBell'
 
 type PendingRedeem = {
@@ -35,7 +34,9 @@ export default function Dashboard() {
   const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { loadDashboard() }, [])
+  useEffect(() => {
+    void loadDashboard()
+  }, [])
 
   async function loadDashboard() {
     try {
@@ -79,9 +80,19 @@ export default function Dashboard() {
 
       let totalInterest = 0
       let count = 0
-      if (interests) { totalInterest += interests.reduce((s, i) => s + i.amount, 0); count += interests.length }
-      if (redemptions) { totalInterest += redemptions.reduce((s, r) => s + (r.interest_last || 0), 0); count += redemptions.length }
-      if (loanTxns) { totalInterest += loanTxns.reduce((s, t) => s + t.amount, 0); count += loanTxns.length }
+      if (interests) {
+        totalInterest += interests.reduce((sum, interest) => sum + interest.amount, 0)
+        count += interests.length
+      }
+      if (redemptions) {
+        totalInterest += redemptions.reduce((sum, redemption) => sum + (redemption.interest_last || 0), 0)
+        count += redemptions.length
+      }
+      if (loanTxns) {
+        totalInterest += loanTxns.reduce((sum, txn) => sum + txn.amount, 0)
+        count += loanTxns.length
+      }
+
       setMonthInterest(totalInterest)
       setMonthCount(count)
     } finally {
@@ -112,12 +123,14 @@ export default function Dashboard() {
             <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)', letterSpacing: -0.5 }}>ห่านทองคำ</div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-            สวัสดี {user?.role === 'owner' ? 'เจ้าของ' : 'เจ้หลุยส์'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+            สวัสดี {user?.role === 'owner' ? 'โทนี่' : 'เจ้หลุยส์'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <NotificationBell pendingPawns={pendingPawns} pendingRedeems={pendingRedeems} />
-          <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>⚙️</button>
+          <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>
+            ⚙️
+          </button>
         </div>
       </div>
 
@@ -162,8 +175,6 @@ export default function Dashboard() {
         <div style={{ fontSize: 32, color: 'var(--text-muted)' }}>›</div>
       </div>
 
-      <PushPrompt compact />
-
       <div className="section-label">ห่านทองคำ</div>
       <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
@@ -201,8 +212,12 @@ export default function Dashboard() {
 
       <div className="section-label">สวนผลไม้</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปลูกต้นไม้เพิ่ม</button>
-        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ชมสวนผลไม้</button>
+        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
+          🌱 ปลูกต้นไม้เพิ่ม
+        </button>
+        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>
+          🍊 ชมสวนผลไม้
+        </button>
       </div>
 
       <div style={{ marginBottom: 14 }}>

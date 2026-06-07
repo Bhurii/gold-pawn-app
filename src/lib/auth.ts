@@ -120,13 +120,13 @@ export async function getOwnerPinValue(): Promise<string> {
 export async function loginOwnerWithPin(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
   const record = await readOwnerPinRecord()
   if (!record?.pin) {
-    return { user: null, error: 'ยังไม่ได้ตั้ง PIN เจ้าของ กรุณาเข้าแบบเดิมก่อน แล้วค่อยไปตั้งในหน้าตั้งค่า' }
+    return { user: null, error: 'ยังไม่ได้ตั้ง PIN โทนี่ กรุณาเข้าแบบเดิมก่อน แล้วค่อยไปตั้งในหน้าตั้งค่า' }
   }
   if (record.pin !== pin) {
-    return { user: null, error: 'PIN เจ้าของไม่ถูกต้อง' }
+    return { user: null, error: 'PIN โทนี่ไม่ถูกต้อง' }
   }
 
-  const user: AppUser = { id: 'owner', role: 'owner', display_name: 'เจ้าของ', auth_type: 'pin' }
+  const user: AppUser = { id: 'owner', role: 'owner', display_name: 'โทนี่', auth_type: 'pin' }
   setSession(user)
   return { user, error: null }
 }
@@ -141,7 +141,7 @@ export async function loginOwnerWithPassword(email: string, password: string): P
   const user: AppUser = {
     id: data.user.id,
     role: 'owner',
-    display_name: role.display_name || 'เจ้าของ',
+    display_name: 'โทนี่',
     auth_type: 'email',
   }
   setSession(user)
@@ -150,7 +150,7 @@ export async function loginOwnerWithPassword(email: string, password: string): P
 
 export async function loginAgent(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
   const { data: settings } = await supabase.from('settings').select('agent_pin').single()
-  if (!settings?.agent_pin) return { user: null, error: 'ยังไม่ได้ตั้ง PIN กรุณาติดต่อเจ้าของ' }
+  if (!settings?.agent_pin) return { user: null, error: 'ยังไม่ได้ตั้ง PIN กรุณาติดต่อโทนี่' }
   if (settings.agent_pin !== pin) return { user: null, error: 'PIN ไม่ถูกต้อง' }
 
   const user: AppUser = { id: 'agent', role: 'agent', display_name: 'เจ้หลุยส์', auth_type: 'pin' }
@@ -159,5 +159,9 @@ export async function loginAgent(pin: string): Promise<{ user: AppUser | null, e
 }
 
 export function canAccessSettings(user: AppUser | null): boolean {
+  return user?.role === 'owner' || user?.role === 'agent'
+}
+
+export function isAdmin(user: AppUser | null): boolean {
   return user?.role === 'owner'
 }
