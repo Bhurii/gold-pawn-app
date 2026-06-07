@@ -88,13 +88,21 @@ export default function PawnDetail() {
       setPawn(pawnRow)
 
       if (pawnRow.renewed_from_id) {
-        const { data: prev } = await supabase.from('pawns').select('id, ticket_no, amount, pawn_date').eq('id', pawnRow.renewed_from_id).single()
+        const { data: prev } = await supabase
+          .from('pawns')
+          .select('id, ticket_no, amount, pawn_date')
+          .eq('id', pawnRow.renewed_from_id)
+          .single()
         setRenewedFrom((prev as LinkPawn | null) || null)
       } else {
         setRenewedFrom(null)
       }
 
-      const { data: next } = await supabase.from('pawns').select('id, ticket_no, amount, renewal_principal_paid').eq('renewed_from_id', pawnRow.id).single()
+      const { data: next } = await supabase
+        .from('pawns')
+        .select('id, ticket_no, amount, renewal_principal_paid')
+        .eq('renewed_from_id', pawnRow.id)
+        .single()
       setRenewedTo((next as LinkPawn | null) || null)
     }
 
@@ -155,7 +163,11 @@ export default function PawnDetail() {
 
     setUploadingPawnSlip(true)
     await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
-    await supabase.from('notifications').insert({ type: 'bypass_cash', message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`, pawn_id: String(id) })
+    await supabase.from('notifications').insert({
+      type: 'bypass_cash',
+      message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
+      pawn_id: String(id),
+    })
     await loadData()
     setUploadingPawnSlip(false)
     showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'เคลียร์รายการเงินสดเรียบร้อยแล้ว' })
@@ -167,7 +179,11 @@ export default function PawnDetail() {
 
     setUploadingPawnSlip(true)
     await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
-    await supabase.from('notifications').insert({ type: 'bypass_prepaid', message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`, pawn_id: String(id) })
+    await supabase.from('notifications').insert({
+      type: 'bypass_prepaid',
+      message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
+      pawn_id: String(id),
+    })
     await loadData()
     setUploadingPawnSlip(false)
     showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'บันทึกการฝากเงินล่วงหน้าเรียบร้อยแล้ว' })
@@ -204,7 +220,7 @@ export default function PawnDetail() {
         <div onClick={() => router.push(`/pawns/${renewedTo.id}`)} style={{ background: 'rgba(242,201,76,0.08)', border: '1px solid rgba(242,201,76,0.28)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔗</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 700 }}>{adjustedType} -> ตั๋วใหม่ #{renewedTo.ticket_no}</div>
+            <div style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 700 }}>{adjustedType}{' -> '}ตั๋วใหม่ #{renewedTo.ticket_no}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ยอดใหม่ ฿{fmt(renewedTo.amount)}</div>
           </div>
           <span style={{ fontSize: 16, color: 'var(--gold)' }}>›</span>
