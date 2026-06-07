@@ -161,25 +161,25 @@ export default function Dashboard() {
         <div style={{ fontSize: 32, color: 'var(--text-muted)' }}>›</div>
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>ห่านทองคำ</div>
-      <div className="card" style={{ marginBottom: 14, padding: 16 }}>
+      <div className="section-label">ห่านทองคำ</div>
+      <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>สร้างใหม่ หรือจัดการของเดิม</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>สร้างใหม่ หรือจัดการของเดิม</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.45, maxWidth: 250 }}>
               หาเบอร์ตั๋วก่อน แล้วค่อยเลือกว่าจะทำอะไรต่อจากรายการนั้น
             </div>
           </div>
-          <span className={pendingCount > 0 ? 'badge-pending' : 'badge-active'} style={{ whiteSpace: 'nowrap' }}>
+          <span className={pendingCount > 0 ? 'badge-pending home-status-pill' : 'home-status-pill'} data-busy={pendingCount > 0}>
             {pendingCount > 0 ? `${pendingCount} งานค้าง` : 'พร้อมทำงาน'}
           </span>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
+          <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60 }}>
             🪺 รับฝากห่าน
           </button>
-          <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px' }}>
+          <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)' }}>
             🔍 ค้นหา / ดูฝูงห่าน
           </button>
         </div>
