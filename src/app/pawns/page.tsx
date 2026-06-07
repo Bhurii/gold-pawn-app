@@ -1,11 +1,18 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Pawn } from '@/lib/types'
 
 type PawnRow = Pawn & {
   tx_status?: 'pending_transfer' | 'active' | 'pending_redeem' | 'redeemed'
+}
+
+type AdjustedInfo = {
+  id: string
+  ticket_no: string
+  amount: number
+  type: 'reduce' | 'topup'
 }
 
 export default function PawnList() {
@@ -28,6 +35,21 @@ export default function PawnList() {
     setLoading(false)
   }
 
+  const adjustedMap = useMemo(() => {
+    const map = new Map<string, AdjustedInfo>()
+    pawns.forEach((pawn) => {
+      if (pawn.renewed_from_id) {
+        map.set(pawn.renewed_from_id, {
+          id: pawn.id,
+          ticket_no: pawn.ticket_no,
+          amount: pawn.amount,
+          type: Number(pawn.renewal_principal_paid) < 0 ? 'topup' : 'reduce',
+        })
+      }
+    })
+    return map
+  }, [pawns])
+
   const filtered = pawns.filter((pawn) => {
     const matchFilter =
       filter === 'all'
@@ -42,12 +64,21 @@ export default function PawnList() {
     return matchFilter && matchSearch
   })
 
+  function getBadge(pawn: PawnRow) {
+    const adjusted = adjustedMap.get(pawn.id)
+    if (pawn.tx_status === 'pending_transfer') return { className: 'badge-pending', label: 'รอโอน' }
+    if (pawn.tx_status === 'pending_redeem') return { className: 'badge-pending', label: 'รอยืนยัน' }
+    if (pawn.status === 'active') return { className: 'badge-active', label: 'จำนำอยู่' }
+    if (adjusted) return { className: 'badge-pending', label: adjusted.type === 'topup' ? 'เพิ่มยอดแล้ว' : 'ลดต้นแล้ว' }
+    return { className: 'badge-redeemed', label: 'ไถ่ถอนไปแล้ว' }
+  }
+
   return (
     <main className="page-container">
       <div style={{ padding: '52px 0 16px' }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)' }}>🔍 ค้นหา / ดูฝูงห่าน</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
-          ค้นหาเลขตั๋วก่อน แล้วค่อยเลือกงานต่อจากตั๋วนั้น
+          ค้นหา ดูสถานะ และกดทำงานต่อจากรายการนั้นได้เลย
         </div>
       </div>
 
@@ -83,53 +114,49 @@ export default function PawnList() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map((pawn) => (
-            <div key={pawn.id} className="card" style={{ padding: 16 }}>
-              <div onClick={() => router.push(`/pawns/${pawn.id}`)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'rgba(232,197,90,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
-                  💍
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>ตั๋ว #{pawn.ticket_no}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {new Date(pawn.pawn_date).toLocaleDateString('th-TH')}
+          {filtered.map((pawn) => {
+            const badge = getBadge(pawn)
+            const adjusted = adjustedMap.get(pawn.id)
+
+            return (
+              <div key={pawn.id} className="card" style={{ padding: 16 }}>
+                <div onClick={() => router.push(`/pawns/${pawn.id}`)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'rgba(232,197,90,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                    💍
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>ตั๋ว #{pawn.ticket_no}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {new Date(pawn.pawn_date).toLocaleDateString('th-TH')}
+                    </div>
+                    {adjusted && (
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                        {adjusted.type === 'topup' ? 'เพิ่มยอด' : 'ลดต้น'} -> ตั๋วใหม่ #{adjusted.ticket_no}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--gold)' }}>฿{pawn.amount.toLocaleString('th-TH')}</div>
+                    <span className={badge.className}>
+                      {badge.label}
+                    </span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--gold)' }}>฿{pawn.amount.toLocaleString('th-TH')}</div>
-                  <span className={
-                    pawn.tx_status === 'pending_transfer'
-                      ? 'badge-pending'
-                      : pawn.tx_status === 'pending_redeem'
-                        ? 'badge-pending'
-                        : pawn.status === 'active'
-                          ? 'badge-active'
-                          : 'badge-redeemed'
-                  }>
-                    {pawn.tx_status === 'pending_transfer'
-                      ? 'รอโอน'
-                      : pawn.tx_status === 'pending_redeem'
-                        ? 'รอยืนยัน'
-                        : pawn.status === 'active'
-                          ? 'จำนำอยู่'
-                          : 'ไถ่ถอนไปแล้ว'}
-                  </span>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <button type="button" className="quick-link" onClick={() => router.push(`/interest?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
+                    <span>🥚 เก็บไข่</span>
+                  </button>
+                  <button type="button" className="quick-link" onClick={() => router.push(`/redeem?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
+                    <span>🐣 คืนห่าน</span>
+                  </button>
+                  <button type="button" className="quick-link" onClick={() => router.push(`/pawns/${pawn.id}`)}>
+                    <span>📋 ดูรายละเอียด</span>
+                  </button>
                 </div>
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                <button type="button" className="quick-link" onClick={() => router.push(`/interest?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
-                  <span>🥚 เก็บไข่</span>
-                </button>
-                <button type="button" className="quick-link" onClick={() => router.push(`/redeem?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
-                  <span>🐣 คืนห่าน</span>
-                </button>
-                <button type="button" className="quick-link" onClick={() => router.push(`/pawns/${pawn.id}`)}>
-                  <span>📋 ดูรายละเอียด</span>
-                </button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

@@ -1,5 +1,6 @@
 export type PawnStatus = 'active' | 'redeemed'
 export type TransferDirection = 'me_to_mom' | 'mom_to_me'
+export type PawnTxStatus = 'pending_transfer' | 'active' | 'pending_redeem' | 'redeemed'
 
 export interface Pawn {
   id: string
@@ -8,6 +9,10 @@ export interface Pawn {
   amount: number
   pawn_slip_url?: string
   status: PawnStatus
+  tx_status?: PawnTxStatus
+  renewed_from_id?: string
+  renewal_interest?: number
+  renewal_principal_paid?: number
   notes?: string
   created_at: string
 }
