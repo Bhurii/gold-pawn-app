@@ -120,7 +120,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 22, padding: 22, marginBottom: 14 }}>
+      <div className="panel-gold" style={{ borderRadius: 22, padding: 22, marginBottom: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>เงินลงทุนคงเหลือ</div>
@@ -128,7 +128,7 @@ export default function Dashboard() {
           </div>
           <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>มูลค่ารวม</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#85b7eb' }}>฿{fmt(totalInvested)}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--gold-light)' }}>฿{fmt(totalInvested)}</div>
           </div>
         </div>
         <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 99, height: 8, marginBottom: 18 }}>
@@ -196,7 +196,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 1, marginBottom: 10, textTransform: 'uppercase' }}>สวนผลไม้</div>
+      <div className="section-label">สวนผลไม้</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>🌱 ปลูกต้นไม้เพิ่ม</button>
         <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>🍊 ชมสวนผลไม้</button>

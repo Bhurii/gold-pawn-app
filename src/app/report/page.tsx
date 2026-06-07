@@ -205,7 +205,7 @@ export default function Report() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
         <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
           className="input-field" style={{ width: 'auto', padding: '8px 14px', fontSize: 15 }}>
           {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y + 543}</option>)}
@@ -252,16 +252,16 @@ export default function Report() {
           ))}
         </div>
 
-        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
-          {isYearView ? `ดูยอดรวมทั้งปี ${selectedYear + 543}` : `กำลังดูเดือน ${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`}
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+            {isYearView ? `ดูยอดรวมทั้งปี ${selectedYear + 543}` : `กำลังดูเดือน ${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`}
+          </div>
         </div>
-      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', color: 'var(--gold)', padding: 40, fontSize: 18 }}>กำลังโหลด...</div>
       ) : (
         <>
-          <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 20, padding: 20, marginBottom: 14 }}>
+          <div className="panel-gold" style={{ padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🥚 ไข่ทั้งหมด {periodLabel}</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(totalInterest)}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
@@ -299,7 +299,7 @@ export default function Report() {
                       <div style={{ fontSize: 14, fontWeight: 600 }}>ตั๋ว #{d.ticket}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(d.date)} · {d.type}</div>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#6fcf6f' }}>+฿{fmt(d.amount)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(d.amount)}</div>
                   </div>
                 ))}
               </div>
@@ -333,7 +333,7 @@ export default function Report() {
                       <div style={{ fontSize: 14, fontWeight: 600 }}>{d.name}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(d.date)}</div>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#6fcf6f' }}>+฿{fmt(d.amount)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(d.amount)}</div>
                   </div>
                 ))}
               </div>
@@ -352,7 +352,7 @@ export default function Report() {
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>มูลค่ารวม</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#85b7eb' }}>฿{fmt(totalInvested)}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-light)' }}>฿{fmt(totalInvested)}</div>
             </div>
           </div>
         </>

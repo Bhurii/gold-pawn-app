@@ -170,11 +170,11 @@ export default function NewPawn() {
               📋 ดูข้อมูล
             </button>
             <button onClick={() => router.push(`/interest?pawn_id=${existingPawn.id}`)}
-              style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: '#6fcf6f', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: 'var(--gold-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               🥚 เก็บไข่
             </button>
             <button onClick={() => router.push(`/redeem?pawn_id=${existingPawn.id}`)}
-              style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: '#f09595', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: 'var(--danger-soft)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               🐣 คืนห่าน
             </button>
           </div>
@@ -183,14 +183,14 @@ export default function NewPawn() {
 
       {scanned && !scanning && !existingPawn && (
         <div style={{ background: 'rgba(21,82,40,0.4)', border: '0.5px solid rgba(97,196,89,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ color: '#6fcf6f', fontSize: 14 }}>✓ AI อ่านตั๋วแล้ว — ตรวจสอบข้อมูลด้านล่าง</div>
-          {aiUsed && <div style={{ color: 'rgba(111,207,111,0.6)', fontSize: 12, marginTop: 4 }}>ใช้: {aiUsed}</div>}
+          <div style={{ color: 'var(--gold-light)', fontSize: 14 }}>✓ AI อ่านตั๋วแล้ว — ตรวจสอบข้อมูลด้านล่าง</div>
+          {aiUsed && <div style={{ color: 'rgba(249,228,154,0.72)', fontSize: 12, marginTop: 4 }}>ใช้: {aiUsed}</div>}
         </div>
       )}
 
       {ocrError && !scanning && (
         <div style={{ background: 'rgba(162,45,45,0.3)', border: '0.5px solid rgba(240,149,149,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
-          <div style={{ color: '#F09595', fontSize: 14 }}>⚠️ {ocrError}</div>
+          <div style={{ color: 'var(--danger-soft)', fontSize: 14 }}>⚠️ {ocrError}</div>
         </div>
       )}
 

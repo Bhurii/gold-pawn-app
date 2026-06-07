@@ -80,15 +80,15 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
           {pendingRedeems.map(r => (
             <div key={r.id}
               onClick={() => { router.push(`/redeem/confirm/${r.id}`); setOpen(false) }}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', background: 'rgba(111,207,111,0.08)', marginBottom: 6 }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', background: 'rgba(242,201,76,0.06)', marginBottom: 6, border: '1px solid rgba(242,201,76,0.16)' }}>
               <span style={{ fontSize: 22, flexShrink: 0 }}>🐣</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#6fcf6f' }}>ขายห่านได้แล้ว!</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-light)' }}>ขายห่านได้แล้ว!</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   ตั๋ว #{r.pawns?.ticket_no} · รอยืนยัน
                 </div>
               </div>
-              <span style={{ fontSize: 16, color: '#6fcf6f', flexShrink: 0 }}>›</span>
+              <span style={{ fontSize: 16, color: 'var(--gold-light)', flexShrink: 0 }}>›</span>
             </div>
           ))}
         </div>

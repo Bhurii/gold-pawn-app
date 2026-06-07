@@ -51,13 +51,13 @@ export default function OtherIncome() {
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
         <div style={{ fontSize: 22, fontWeight: 800 }}>รายได้อื่นๆ</div>
         <button onClick={() => setShowForm(!showForm)}
-          style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#B8860B,#F0C040)', color: '#0A0A0A', border: 'none', borderRadius: 12, padding: '8px 18px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+          style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#C9922A,#F2C94C)', color: '#080808', border: 'none', borderRadius: 12, padding: '8px 18px', fontSize: 15, fontWeight: 700, cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)' }}>
           + เพิ่ม
         </button>
       </div>
 
       {/* ยอดรวม */}
-      <div style={{ background: 'linear-gradient(135deg,#1A1200,#2A1F00)', border: '1px solid rgba(240,192,64,0.3)', borderRadius: 20, padding: 20, marginBottom: 16 }}>
+      <div className="panel-gold" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>รายได้อื่นๆ รวม</div>
         <div style={{ fontSize: 34, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(total)}</div>
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 4 }}>{list.length} รายการ</div>
@@ -106,7 +106,7 @@ export default function OtherIncome() {
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(item.income_date).toLocaleDateString('th-TH')}</div>
                 {item.note && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{item.note}</div>}
               </div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#6fcf6f', flexShrink: 0 }}>+฿{fmt(item.amount)}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold-light)', flexShrink: 0 }}>+฿{fmt(item.amount)}</div>
             </div>
           ))}
         </div>

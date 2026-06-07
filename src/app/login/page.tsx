@@ -47,7 +47,7 @@ export default function Login() {
       </div>
 
       {/* Toggle */}
-      <div style={{ display: 'flex', background: 'var(--black-700)', borderRadius: 16, padding: 4, gap: 4, marginBottom: 32, width: '100%', maxWidth: 320 }}>
+      <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 16, padding: 4, gap: 4, marginBottom: 32, width: '100%', maxWidth: 320 }}>
         <button onClick={() => { setMode('agent'); setError(''); setPin('') }}
           style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s', background: mode === 'agent' ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent', color: mode === 'agent' ? '#080808' : 'var(--text-muted)' }}>
           เจ้หลุยส์
@@ -110,7 +110,7 @@ export default function Login() {
       )}
 
       {error && (
-        <div style={{ marginTop: 20, background: 'rgba(162,45,45,0.3)', border: '0.5px solid rgba(240,149,149,0.3)', borderRadius: 12, padding: '12px 16px', color: '#F09595', fontSize: 14, textAlign: 'center', maxWidth: 320, width: '100%' }}>
+        <div className="danger-chip" style={{ marginTop: 20, borderRadius: 12, padding: '12px 16px', fontSize: 14, textAlign: 'center', maxWidth: 320, width: '100%' }}>
           {error}
         </div>
       )}

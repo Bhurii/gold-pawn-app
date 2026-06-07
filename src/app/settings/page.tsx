@@ -96,7 +96,7 @@ export default function Settings() {
       </div>
 
       {/* Logout */}
-      <button onClick={handleLogout} style={{ width: '100%', padding: '16px', borderRadius: 16, border: '1px solid rgba(240,149,149,0.3)', background: 'transparent', color: '#f09595', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+      <button onClick={handleLogout} className="danger-chip" style={{ width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
         ออกจากระบบ
       </button>
 

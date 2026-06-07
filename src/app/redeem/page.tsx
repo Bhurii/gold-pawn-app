@@ -179,11 +179,11 @@ function RedeemContent() {
         เจ้าหลุยอัปข้อมูล → รอชาวสวนยืนยัน
       </div>
 
-      <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 18, padding: 18, marginBottom: 16 }}>
+      <div className="panel-gold" style={{ borderRadius: 18, padding: 18, marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>เงินต้น</div>
         <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(selected?.amount || 0)}</div>
         {interestPayments.length > 0 && (
-          <div style={{ fontSize: 13, color: '#6fcf6f', marginTop: 6 }}>
+          <div style={{ fontSize: 13, color: 'var(--gold-light)', marginTop: 6 }}>
             🥚 เก็บไข่แล้ว {interestPayments.length} ครั้ง รวม ฿{fmt(interestPaid)}
           </div>
         )}
@@ -236,13 +236,13 @@ function RedeemContent() {
         value={form.redeem_date} onChange={(e) => setForm({ ...form, redeem_date: e.target.value })}
         style={{ marginBottom: 16 }} />
 
-      <div style={{ background: '#0A0A0A', border: '1px solid rgba(242,201,76,0.2)', borderRadius: 16, padding: 18, marginBottom: 20 }}>
+      <div className="card" style={{ background: '#0A0A0A', borderRadius: 16, padding: 18, marginBottom: 20 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>🥚 สรุปไข่ทั้งหมด</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
-          <span>เก็บไข่แล้ว</span><span style={{ color: '#6fcf6f' }}>฿{fmt(interestPaid)}</span>
+          <span>เก็บไข่แล้ว</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestPaid)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          <span>ไข่งวดสุดท้าย</span><span style={{ color: '#6fcf6f' }}>฿{fmt(interestLast)}</span>
+          <span>ไข่งวดสุดท้าย</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestLast)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 800, borderTop: '0.5px solid rgba(242,201,76,0.2)', paddingTop: 12 }}>
           <span style={{ color: 'var(--text-muted)' }}>ไข่รวมทั้งหมด</span>

@@ -225,7 +225,7 @@ function RenewContent() {
         <div style={{ fontSize: 22, fontWeight: 800 }}>📋 ลดต้น</div>
       </div>
 
-      <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 18, padding: 18, marginBottom: 16 }}>
+      <div className="panel-gold" style={{ borderRadius: 18, padding: 18, marginBottom: 16 }}>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>ตั๋วเดิม</div>
         <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>#{pawn.ticket_no}</div>
         <div style={{ fontSize: 15, color: 'var(--text-secondary)', marginTop: 4 }}>
@@ -286,8 +286,8 @@ function RenewContent() {
         />
 
         {dateConfidence !== 'manual' && (
-          <div style={{ background: dateConfidence === 'suggested' ? 'rgba(242,201,76,0.08)' : 'rgba(133,183,235,0.08)', border: `1px solid ${dateConfidence === 'suggested' ? 'rgba(242,201,76,0.28)' : 'rgba(133,183,235,0.28)'}`, borderRadius: 14, padding: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: dateConfidence === 'suggested' ? 'var(--gold)' : '#85b7eb', marginBottom: 6 }}>
+          <div style={{ background: dateConfidence === 'suggested' ? 'rgba(242,201,76,0.08)' : 'rgba(242,201,76,0.05)', border: `1px solid ${dateConfidence === 'suggested' ? 'rgba(242,201,76,0.28)' : 'rgba(242,201,76,0.18)'}`, borderRadius: 14, padding: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: dateConfidence === 'suggested' ? 'var(--gold)' : 'var(--gold-light)', marginBottom: 6 }}>
               {dateConfidence === 'clear' ? 'AI อ่านวันที่บนตั๋วได้' : dateConfidence === 'suggested' ? 'AI แนะนำวันที่จากบริบท' : 'AI อ่านวันที่ไม่ชัด'}
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>{dateNote || 'กรุณาตรวจสอบวันที่ก่อนบันทึก'}</div>
@@ -299,22 +299,22 @@ function RenewContent() {
           </div>
         )}
 
-        <div style={{ background: '#0A0A0A', border: '1px solid rgba(242,201,76,0.2)', borderRadius: 14, padding: 16 }}>
+        <div className="card" style={{ background: '#0A0A0A', borderRadius: 14, padding: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
             <span>ยอดต้นเดิม</span><span>฿{fmt(pawn.amount)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            <span>ต้นที่ลด</span><span style={{ color: '#6fcf6f' }}>-฿{fmt(principalPaid)}</span>
+            <span>ต้นที่ลด</span><span style={{ color: 'var(--gold-light)' }}>-฿{fmt(principalPaid)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            <span>ดอกที่เคลียร์</span><span style={{ color: '#6fcf6f' }}>-฿{fmt(interest)}</span>
+            <span>ดอกที่เคลียร์</span><span style={{ color: 'var(--gold-light)' }}>-฿{fmt(interest)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 800, borderTop: '0.5px solid rgba(242,201,76,0.2)', paddingTop: 10 }}>
             <span style={{ color: 'var(--text-muted)' }}>ยอดตั๋วใหม่</span>
-            <span style={{ color: newAmount > 0 ? 'var(--gold)' : '#f09595' }}>฿{fmt(Math.max(newAmount, 0))}</span>
+            <span style={{ color: newAmount > 0 ? 'var(--gold)' : 'var(--danger-soft)' }}>฿{fmt(Math.max(newAmount, 0))}</span>
           </div>
           {ocrAmount !== null && (
-            <div style={{ marginTop: 10, fontSize: 13, color: amountMismatch ? '#f09595' : '#6fcf6f' }}>
+            <div style={{ marginTop: 10, fontSize: 13, color: amountMismatch ? 'var(--danger-soft)' : 'var(--gold-light)' }}>
               {amountMismatch ? `AI อ่านยอดจากรูปได้ ฿${fmt(ocrAmount)} ซึ่งไม่ตรงกับยอดใหม่ที่คำนวณ` : `AI อ่านยอดจากรูปตรงกับยอดใหม่ ฿${fmt(ocrAmount)}`}
             </div>
           )}

@@ -76,7 +76,7 @@ export default function LoanDetail() {
   const fmt = (n: number) => n.toLocaleString('th-TH')
 
   const txnTypeLabel: Record<string, string> = { principal: '💵 ปล่อยกู้', interest: '✂️ ตัดดอก', principal_payment: '💰 ตัดต้น', close: '✅ ปิดหนี้' }
-  const txnTypeColor: Record<string, string> = { principal: 'var(--gold)', interest: '#6fcf6f', principal_payment: '#85b7eb', close: '#f09595' }
+  const txnTypeColor: Record<string, string> = { principal: 'var(--gold)', interest: 'var(--gold-light)', principal_payment: 'var(--gold-soft)', close: 'var(--danger-soft)' }
 
   return (
     <main className="page-container">
@@ -96,7 +96,7 @@ export default function LoanDetail() {
       </div>
 
       {/* สรุปยอด */}
-      <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 20, padding: 20, marginBottom: 16 }}>
+      <div className="panel-gold" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>เงินต้นเริ่มต้น</div>
@@ -108,11 +108,11 @@ export default function LoanDetail() {
           </div>
           <div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ดอกรวมได้รับ</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#6fcf6f' }}>฿{fmt(totalInterest)}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold-light)' }}>฿{fmt(totalInterest)}</div>
           </div>
           <div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ต้นที่รับคืนแล้ว</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#85b7eb' }}>฿{fmt(totalPaid)}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--gold-soft)' }}>฿{fmt(totalPaid)}</div>
           </div>
         </div>
         {loan.interest_rate > 0 && (

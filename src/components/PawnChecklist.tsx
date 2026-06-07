@@ -29,15 +29,15 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
   function CheckRow({ done, pending, label, expanded, onToggle, children }: any) {
     return (
       <div style={{ marginBottom: 8 }}>
-        <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: done ? 'rgba(21,82,40,0.3)' : pending ? 'rgba(242,201,76,0.1)' : 'var(--black-800)', border: `1px solid ${done ? 'rgba(111,207,111,0.3)' : pending ? 'rgba(242,201,76,0.4)' : 'var(--border)'}`, borderRadius: expanded ? '14px 14px 0 0' : 14, cursor: 'pointer', transition: 'border-radius 0.2s' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: done ? '#1A3D10' : pending ? '#2A1A00' : 'var(--black-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: done ? '#6fcf6f' : pending ? '#F2C94C' : 'var(--text-muted)', flexShrink: 0 }}>
+        <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: done ? 'rgba(242,201,76,0.08)' : pending ? 'rgba(201,146,42,0.1)' : 'var(--black-800)', border: `1px solid ${done ? 'rgba(242,201,76,0.24)' : pending ? 'rgba(242,201,76,0.3)' : 'var(--border)'}`, borderRadius: expanded ? '14px 14px 0 0' : 14, cursor: 'pointer', transition: 'border-radius 0.2s' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: done ? 'rgba(242,201,76,0.14)' : pending ? '#2A1A00' : 'var(--black-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: done ? 'var(--gold-light)' : pending ? '#F2C94C' : 'var(--text-muted)', flexShrink: 0 }}>
             {done ? '✓' : pending ? '!' : '○'}
           </div>
-          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: done ? '#6fcf6f' : pending ? '#F2C94C' : 'var(--text-muted)' }}>{label}</div>
+          <div style={{ flex: 1, fontSize: 15, fontWeight: 600, color: done ? 'var(--gold-light)' : pending ? '#F2C94C' : 'var(--text-muted)' }}>{label}</div>
           <span style={{ fontSize: 16, color: 'var(--text-muted)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>⌄</span>
         </div>
         {expanded && (
-          <div style={{ background: 'var(--black-800)', border: `1px solid ${done ? 'rgba(111,207,111,0.3)' : pending ? 'rgba(242,201,76,0.4)' : 'var(--border)'}`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 16px' }}>
+          <div style={{ background: 'var(--black-800)', border: `1px solid ${done ? 'rgba(242,201,76,0.24)' : pending ? 'rgba(242,201,76,0.3)' : 'var(--border)'}`, borderTop: 'none', borderRadius: '0 0 14px 14px', padding: '12px 16px' }}>
             {children}
           </div>
         )}
@@ -87,7 +87,7 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
               </label>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button onClick={onBypassCash} style={{ padding: '10px', borderRadius: 12, border: '1px solid rgba(111,207,111,0.4)', background: 'rgba(111,207,111,0.08)', color: '#6fcf6f', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>💵 เงินสด</button>
+              <button onClick={onBypassCash} style={{ padding: '10px', borderRadius: 12, border: '1px solid rgba(242,201,76,0.24)', background: 'rgba(242,201,76,0.08)', color: 'var(--gold-light)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>💵 เงินสด</button>
               <button onClick={onBypassPrepaid} style={{ padding: '10px', borderRadius: 12, border: '1px solid rgba(242,201,76,0.3)', background: 'rgba(242,201,76,0.06)', color: 'var(--gold)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>🤝 ฝากไว้</button>
             </div>
           </div>
@@ -126,7 +126,7 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
                     <div style={{ fontSize: 14, fontWeight: 600 }}>ครั้งที่ {i + 1}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(int.payment_date)}</div>
                   </div>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#6fcf6f' }}>+฿{fmt(int.amount)}</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(int.amount)}</div>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid rgba(242,201,76,0.2)' }}>
@@ -143,7 +143,7 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
         <CheckRow done={true} pending={false} label={`🐣 คืนห่านแล้ว · ${toThaiDateShort(redemption.redeem_date)}`} expanded={expandRedeem} onToggle={() => setExpandRedeem(!expandRedeem)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
             <span style={{ color: 'var(--text-muted)' }}>ดอกรวม</span>
-            <span style={{ color: '#6fcf6f', fontWeight: 700 }}>+฿{fmt(redemption.interest_total)}</span>
+            <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption.interest_total)}</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             {redemption.pawn_slip_url && (

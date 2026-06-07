@@ -76,13 +76,13 @@ export default function ConfirmRedeem() {
         ตรวจสอบข้อมูลแล้วกดยืนยัน
       </div>
 
-      <div style={{ background: 'linear-gradient(135deg,#180F00,#2C1A00)', border: '1px solid rgba(242,201,76,0.35)', borderRadius: 20, padding: 20, marginBottom: 16 }}>
+      <div className="panel-gold" style={{ padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ตั๋ว #{pawn?.ticket_no}</div>
         <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(pawn?.amount || 0)}</div>
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>วันที่คืน: {toThaiDateLong(redemption?.redeem_date)}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
           <span>ไข่รวมทั้งหมด</span>
-          <span style={{ color: '#6fcf6f', fontWeight: 700 }}>+฿{fmt(redemption?.interest_total || 0)}</span>
+          <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption?.interest_total || 0)}</span>
         </div>
       </div>
 
