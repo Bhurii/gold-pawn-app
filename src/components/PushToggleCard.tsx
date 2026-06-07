@@ -130,20 +130,10 @@ export default function PushToggleCard({ title = 'แจ้งเตือนแ
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginTop: 12 }}>
         <button className="btn-secondary" type="button" onClick={() => void handleTest()} disabled={busy || state !== 'enabled'}>
           ทดสอบแจ้งเตือน
         </button>
-        {enabled && (
-          <button className="btn-secondary" type="button" onClick={() => void handleToggle()} disabled={busy}>
-            ปิดบนเครื่องนี้
-          </button>
-        )}
-        {!enabled && (
-          <button className="btn-secondary" type="button" onClick={() => void handleToggle()} disabled={busy || state === 'unsupported'}>
-            เปิดจากปุ่มนี้
-          </button>
-        )}
       </div>
 
       {message && (

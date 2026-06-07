@@ -28,8 +28,6 @@ export default function Dashboard() {
   const [activeAmount, setActiveAmount] = useState(0)
   const [activeLoans, setActiveLoans] = useState(0)
   const [loanAmount, setLoanAmount] = useState(0)
-  const [monthInterest, setMonthInterest] = useState(0)
-  const [monthCount, setMonthCount] = useState(0)
   const [pendingPawns, setPendingPawns] = useState<PendingPawn[]>([])
   const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
   const [loading, setLoading] = useState(true)
@@ -40,24 +38,16 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      const now = new Date()
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
       const [
         { data: settings },
         { data: pawns },
         { data: pendingR },
         { data: loans },
-        { data: interests },
-        { data: redemptions },
-        { data: loanTxns },
       ] = await Promise.all([
         supabase.from('settings').select('invest_budget').single(),
         supabase.from('pawns').select('id, ticket_no, amount, tx_status').eq('status', 'active'),
         supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount)').eq('status', 'pending_confirm'),
         supabase.from('loans').select('id, remaining_principal').eq('status', 'active'),
-        supabase.from('interest_payments').select('amount').gte('payment_date', firstDay),
-        supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay),
-        supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay),
       ])
 
       if (settings) setBudget(settings.invest_budget)
@@ -77,24 +67,6 @@ export default function Dashboard() {
         setActiveLoans(loans.length)
         setLoanAmount(loans.reduce((sum, loan) => sum + loan.remaining_principal, 0))
       }
-
-      let totalInterest = 0
-      let count = 0
-      if (interests) {
-        totalInterest += interests.reduce((sum, interest) => sum + interest.amount, 0)
-        count += interests.length
-      }
-      if (redemptions) {
-        totalInterest += redemptions.reduce((sum, redemption) => sum + (redemption.interest_last || 0), 0)
-        count += redemptions.length
-      }
-      if (loanTxns) {
-        totalInterest += loanTxns.reduce((sum, txn) => sum + txn.amount, 0)
-        count += loanTxns.length
-      }
-
-      setMonthInterest(totalInterest)
-      setMonthCount(count)
     } finally {
       setLoading(false)
     }
@@ -166,24 +138,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div onClick={() => router.push('/report')} className="card" style={{ marginBottom: 14, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ไข่เดือนนี้</div>
-          <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(monthInterest)}</div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>{monthCount} รายการ</div>
-        </div>
-        <div style={{ fontSize: 32, color: 'var(--text-muted)' }}>›</div>
-      </div>
-
       <div className="section-label">ห่านทองคำ</div>
       <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold-ivory)', lineHeight: 1.2 }}>สร้างใหม่ หรือจัดการของเดิม</div>
-            <div style={{ fontSize: 13, color: 'var(--gold-ivory)', marginTop: 6, lineHeight: 1.5, maxWidth: 250, opacity: 0.9 }}>
-              หาเบอร์ตั๋วก่อน แล้วค่อยเลือกว่าจะทำอะไรต่อจากรายการนั้น
-            </div>
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold-ivory)', lineHeight: 1.2 }}>ห่านทองคำ</div>
           <span className={pendingCount > 0 ? 'badge-pending home-status-pill' : 'home-status-pill'} data-busy={pendingCount > 0}>
             {pendingCount > 0 ? `${pendingCount} งานค้าง` : 'พร้อมทำงาน'}
           </span>
@@ -198,16 +156,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button type="button" className="quick-link" onClick={() => router.push('/pawns?filter=pending_transfer')}>
-            <span>💸 รอโอนเงิน</span>
-            <strong>{pendingPawns.length}</strong>
-          </button>
-          <button type="button" className="quick-link" onClick={() => router.push('/pawns?filter=pending_confirm')}>
-            <span>🐣 รอยืนยันคืน</span>
-            <strong>{pendingRedeems.length}</strong>
-          </button>
-        </div>
       </div>
 
       <div className="section-label">สวนผลไม้</div>
