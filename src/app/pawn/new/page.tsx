@@ -182,14 +182,14 @@ export default function NewPawn() {
       )}
 
       {scanned && !scanning && !existingPawn && (
-        <div style={{ background: 'rgba(21,82,40,0.4)', border: '0.5px solid rgba(97,196,89,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
+        <div className="soft-success" style={{ borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
           <div style={{ color: 'var(--gold-light)', fontSize: 14 }}>✓ AI อ่านตั๋วแล้ว — ตรวจสอบข้อมูลด้านล่าง</div>
           {aiUsed && <div style={{ color: 'rgba(249,228,154,0.72)', fontSize: 12, marginTop: 4 }}>ใช้: {aiUsed}</div>}
         </div>
       )}
 
       {ocrError && !scanning && (
-        <div style={{ background: 'rgba(162,45,45,0.3)', border: '0.5px solid rgba(240,149,149,0.3)', borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
+        <div className="danger-chip" style={{ borderRadius: 14, padding: '12px 16px', marginBottom: 16 }}>
           <div style={{ color: 'var(--danger-soft)', fontSize: 14 }}>⚠️ {ocrError}</div>
         </div>
       )}

@@ -47,7 +47,7 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 700, letterSpacing: 0.5, marginBottom: 10, textTransform: 'uppercase' }}>
+      <div className="section-label" style={{ marginBottom: 10 }}>
         สถานะรายการ
       </div>
 

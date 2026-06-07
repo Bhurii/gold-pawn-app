@@ -205,7 +205,7 @@ export default function Report() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
         <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
           className="input-field" style={{ width: 'auto', padding: '8px 14px', fontSize: 15 }}>
           {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y + 543}</option>)}
@@ -252,10 +252,10 @@ export default function Report() {
           ))}
         </div>
 
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
-            {isYearView ? `ดูยอดรวมทั้งปี ${selectedYear + 543}` : `กำลังดูเดือน ${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`}
-          </div>
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+          {isYearView ? `ดูยอดรวมทั้งปี ${selectedYear + 543}` : `กำลังดูเดือน ${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`}
         </div>
+      </div>
 
       {loading ? (
         <div style={{ textAlign: 'center', color: 'var(--gold)', padding: 40, fontSize: 18 }}>กำลังโหลด...</div>
