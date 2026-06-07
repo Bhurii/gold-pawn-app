@@ -182,12 +182,12 @@ body {
   border: 1px solid rgba(242,201,76,0.22);
 }
 .badge-redeemed {
-  background: rgba(245,240,224,0.08);
-  color: rgba(245,240,224,0.78);
+  background: rgba(170, 49, 49, 0.2);
+  color: #F3B0B0;
   font-size: 12px; font-weight: 700;
   padding: 4px 12px; border-radius: 20px;
   display: inline-block;
-  border: 1px solid rgba(245,240,224,0.12);
+  border: 1px solid rgba(243, 176, 176, 0.28);
 }
 .badge-pending {
   background: rgba(201,146,42,0.16);
