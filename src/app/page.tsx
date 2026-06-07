@@ -65,7 +65,12 @@ export default function Dashboard() {
         setActiveAmount(activeReadyPawns.reduce((sum, pawn) => sum + pawn.amount, 0))
         setPendingPawns(pawns.filter((pawn) => pawn.tx_status === 'pending_transfer'))
       }
-      if (pendingR) setPendingRedeems(pendingR)
+      if (pendingR) {
+        setPendingRedeems(pendingR.map((redeem) => ({
+          ...redeem,
+          pawns: Array.isArray(redeem.pawns) ? redeem.pawns[0] ?? null : redeem.pawns,
+        })))
+      }
       if (loans) {
         setActiveLoans(loans.length)
         setLoanAmount(loans.reduce((sum, loan) => sum + loan.remaining_principal, 0))
