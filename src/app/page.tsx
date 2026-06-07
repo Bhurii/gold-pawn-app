@@ -172,17 +172,19 @@ export default function Dashboard() {
       </div>
 
       <div className="section-label">สวนผลไม้</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
-        <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
-          🌱 ปลูกต้นไม้เพิ่ม
-        </button>
-        <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>
-          🍊 ชมสวนผลไม้
-        </button>
+      <div className="card" style={{ marginBottom: 14, padding: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
+            🌱 ปลูกต้นไม้เพิ่ม
+          </button>
+          <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>
+            🍊 ชมสวนผลไม้
+          </button>
+        </div>
       </div>
 
       <div className="section-label">ผลผลิต</div>
-      <div style={{ marginBottom: 14 }}>
+      <div className="card" style={{ marginBottom: 14, padding: 16 }}>
         <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px', width: '100%' }}>
           📊 ดูผลผลิต
         </button>
