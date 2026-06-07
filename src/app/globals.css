@@ -189,6 +189,14 @@ body {
   display: inline-block;
   border: 1px solid rgba(243, 176, 176, 0.28);
 }
+.badge-adjusted {
+  background: rgba(242,201,76,0.14);
+  color: var(--gold-light);
+  font-size: 12px; font-weight: 700;
+  padding: 4px 12px; border-radius: 20px;
+  display: inline-block;
+  border: 1px solid rgba(242,201,76,0.26);
+}
 .badge-pending {
   background: rgba(201,146,42,0.16);
   color: var(--gold);
@@ -311,4 +319,15 @@ body {
   border: 1px solid rgba(242,201,76,0.24);
   background: rgba(242,201,76,0.08);
   color: var(--gold-light);
+}
+
+.info-note {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(242,201,76,0.16);
+  background: rgba(255,255,255,0.03);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
 }

@@ -73,7 +73,12 @@ export default function PawnList() {
   function getBadge(pawn: PawnRow) {
     const adjusted = adjustedMap.get(pawn.id)
     if (pawn.status === 'active') return { className: 'badge-active', label: 'จำนำอยู่' }
-    if (adjusted) return { className: 'badge-redeemed', label: 'ไถ่ถอนแล้ว' }
+    if (adjusted) {
+      return {
+        className: 'badge-adjusted',
+        label: adjusted.type === 'topup' ? 'เพิ่มยอดแล้ว' : 'ลดต้นแล้ว',
+      }
+    }
     return { className: 'badge-redeemed', label: 'ไถ่ถอนไปแล้ว' }
   }
 

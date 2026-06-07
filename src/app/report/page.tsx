@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, fmt } from '@/lib/utils'
@@ -67,8 +67,9 @@ function relationFirst<T>(value: T | T[] | null | undefined) {
 
 export default function Report() {
   const router = useRouter()
+  const currentYear = new Date().getFullYear()
   const [selectedPeriod, setSelectedPeriod] = useState<SelectedPeriod>(new Date().getMonth())
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState(currentYear)
   const [data, setData] = useState<ReportState>({
     pawnInterest: 0,
     loanInterest: 0,
@@ -90,6 +91,12 @@ export default function Report() {
   const [yearInterests, setYearInterests] = useState<PawnInterestRow[]>([])
   const [yearRedemptions, setYearRedemptions] = useState<RedemptionRow[]>([])
   const [yearLoanTxns, setYearLoanTxns] = useState<LoanInterestRow[]>([])
+
+  const availableYears = useMemo(() => {
+    const firstSupportedYear = 2024
+    const lastSupportedYear = currentYear + 1
+    return Array.from({ length: lastSupportedYear - firstSupportedYear + 1 }, (_, index) => firstSupportedYear + index)
+  }, [currentYear])
 
   useEffect(() => { loadYearData() }, [selectedYear])
   useEffect(() => { buildPeriodData() }, [selectedPeriod, yearBudget, yearPawned, yearLoanPrincipal, yearInterests, yearRedemptions, yearLoanTxns])
@@ -194,6 +201,7 @@ export default function Report() {
   const remaining = data.budget - totalInvested
   const roiCurrent = data.budget > 0 ? ((totalInterest / data.budget) * 100).toFixed(2) : '0.00'
   const isYearView = selectedPeriod === 'all'
+  const isCurrentYear = selectedYear === currentYear
   const maxBar = Math.max(...monthlyData, 1)
   const periodLabel = isYearView ? `ทั้งปี ${selectedYear + 543}` : `${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`
   const currentRoiLabel = isYearView ? 'ROI ทั้งปี' : 'ROI เดือนนี้'
@@ -206,9 +214,15 @@ export default function Report() {
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}
-          className="input-field" style={{ width: 'auto', padding: '8px 14px', fontSize: 15 }}>
-          {[2024, 2025, 2026, 2027].map((y) => <option key={y} value={y}>{y + 543}</option>)}
+        <select
+          value={selectedYear}
+          onChange={(e) => setSelectedYear(Number(e.target.value))}
+          className="input-field"
+          style={{ width: 'auto', padding: '8px 14px', fontSize: 15 }}
+        >
+          {availableYears.map((year) => (
+            <option key={year} value={year}>{year + 543}</option>
+          ))}
         </select>
       </div>
 
@@ -227,27 +241,42 @@ export default function Report() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80, marginBottom: 8 }}>
-          {monthlyData.map((val, i) => (
-            <div key={i} onClick={() => setSelectedPeriod(i)}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
-              <div style={{
-                width: '100%',
-                borderRadius: '4px 4px 0 0',
-                height: `${Math.max((val / maxBar) * 70, val > 0 ? 6 : 2)}px`,
-                background: !isYearView && i === selectedPeriod
-                  ? 'linear-gradient(180deg,#F2C94C,#C9922A)'
-                  : val > 0 ? 'rgba(242,201,76,0.45)' : 'rgba(255,255,255,0.08)',
-                transition: 'height 0.3s',
-              }} />
+          {monthlyData.map((val, index) => (
+            <div
+              key={index}
+              onClick={() => setSelectedPeriod(index)}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  borderRadius: '4px 4px 0 0',
+                  height: `${Math.max((val / maxBar) * 70, val > 0 ? 6 : 2)}px`,
+                  background: !isYearView && index === selectedPeriod
+                    ? 'linear-gradient(180deg,#F2C94C,#C9922A)'
+                    : val > 0 ? 'rgba(242,201,76,0.45)' : 'rgba(255,255,255,0.08)',
+                  transition: 'height 0.3s',
+                }}
+              />
             </div>
           ))}
         </div>
 
         <div style={{ display: 'flex', gap: 4 }}>
-          {MONTHS_SHORT.map((m, i) => (
-            <div key={i} onClick={() => setSelectedPeriod(i)}
-              style={{ flex: 1, textAlign: 'center', fontSize: 9, color: !isYearView && i === selectedPeriod ? 'var(--gold)' : 'var(--text-muted)', fontWeight: !isYearView && i === selectedPeriod ? 700 : 400, cursor: 'pointer' }}>
-              {m.replace('.', '')}
+          {MONTHS_SHORT.map((month, index) => (
+            <div
+              key={index}
+              onClick={() => setSelectedPeriod(index)}
+              style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: 9,
+                color: !isYearView && index === selectedPeriod ? 'var(--gold)' : 'var(--text-muted)',
+                fontWeight: !isYearView && index === selectedPeriod ? 700 : 400,
+                cursor: 'pointer',
+              }}
+            >
+              {month.replace('.', '')}
             </div>
           ))}
         </div>
@@ -277,8 +306,10 @@ export default function Report() {
           </div>
 
           <div className="card" style={{ marginBottom: 12 }}>
-            <div onClick={() => setExpandPawn(!expandPawn)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+            <div
+              onClick={() => setExpandPawn(!expandPawn)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+            >
               <span style={{ fontSize: 28 }}>🥚</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>ไข่จากห่านทองคำ</div>
@@ -291,15 +322,18 @@ export default function Report() {
             </div>
             {expandPawn && pawnDetails.length > 0 && (
               <div style={{ marginTop: 14, borderTop: '0.5px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {pawnDetails.map((d, i) => (
-                  <div key={i} onClick={() => router.push(`/pawns?search=${d.ticket}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 0' }}>
+                {pawnDetails.map((detail, index) => (
+                  <div
+                    key={index}
+                    onClick={() => router.push(`/pawns?search=${detail.ticket}`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 0' }}
+                  >
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🥚</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>ตั๋ว #{d.ticket}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(d.date)} · {d.type}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>ตั๋ว #{detail.ticket}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(detail.date)} · {detail.type}</div>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(d.amount)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(detail.amount)}</div>
                   </div>
                 ))}
               </div>
@@ -312,8 +346,10 @@ export default function Report() {
           </div>
 
           <div className="card" style={{ marginBottom: 12 }}>
-            <div onClick={() => setExpandLoan(!expandLoan)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+            <div
+              onClick={() => setExpandLoan(!expandLoan)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+            >
               <span style={{ fontSize: 28 }}>🍊</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>ผลผลิตจากสวนผลไม้</div>
@@ -326,14 +362,14 @@ export default function Report() {
             </div>
             {expandLoan && loanDetails.length > 0 && (
               <div style={{ marginTop: 14, borderTop: '0.5px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {loanDetails.map((d, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' }}>
+                {loanDetails.map((detail, index) => (
+                  <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' }}>
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🍊</div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>{d.name}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(d.date)}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{detail.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(detail.date)}</div>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(d.amount)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(detail.amount)}</div>
                   </div>
                 ))}
               </div>
@@ -345,13 +381,23 @@ export default function Report() {
             )}
           </div>
 
+          {!isCurrentYear && (
+            <div className="info-note">
+              ตอนนี้คุณกำลังดูรายได้ของปี {selectedYear + 543} แต่ตัวเลขด้านล่างยังเป็นภาพรวมปัจจุบันของพอร์ต เพื่อไม่ให้เข้าใจว่าเป็น snapshot ย้อนหลังของปีนั้น
+            </div>
+          )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div className="card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>เงินลงทุนคงเหลือ</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                {isCurrentYear ? 'เงินลงทุนคงเหลือ' : 'เงินลงทุนคงเหลือปัจจุบัน'}
+              </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(remaining)}</div>
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>มูลค่ารวม</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                {isCurrentYear ? 'มูลค่ารวม' : 'มูลค่ารวมปัจจุบัน'}
+              </div>
               <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-light)' }}>฿{fmt(totalInvested)}</div>
             </div>
           </div>
