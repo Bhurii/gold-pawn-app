@@ -36,7 +36,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     void loadDashboard()
-  }, [])
+    router.prefetch('/pawn/new')
+    router.prefetch('/loans/new')
+  }, [router])
 
   async function loadDashboard() {
     try {

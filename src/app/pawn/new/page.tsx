@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
@@ -18,6 +18,10 @@ export default function NewPawn() {
   const [ocrError, setOcrError] = useState('')
   const [existingPawn, setExistingPawn] = useState<any>(null)
   const [form, setForm] = useState({ ticket_no: '', pawn_date: '', amount: '' })
+
+  useEffect(() => {
+    router.prefetch('/')
+  }, [router])
 
   function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -119,7 +123,7 @@ export default function NewPawn() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <button onClick={() => router.push('/' )} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
         <div style={{ fontSize: 22, fontWeight: 800 }}>🪺 รับฝากห่าน</div>
       </div>
 

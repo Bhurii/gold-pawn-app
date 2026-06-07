@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
@@ -14,6 +14,10 @@ export default function NewLoan() {
     interest_rate: '',
     notes: ''
   })
+
+  useEffect(() => {
+    router.prefetch('/')
+  }, [router])
 
   async function handleSave() {
     if (!form.borrower_name || !form.principal) {
@@ -54,7 +58,7 @@ export default function NewLoan() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <button onClick={() => router.push('/' )} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
         <div style={{ fontSize: 22, fontWeight: 800 }}>ปลูกต้นไม้เพิ่ม</div>
       </div>
 
