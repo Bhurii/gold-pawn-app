@@ -128,7 +128,7 @@ export default function PawnDetail() {
           style={{ background: 'rgba(242,201,76,0.08)', border: '1px solid rgba(242,201,76,0.28)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 18 }}>🔗</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 700 }}>{adjustedType} -> ตั๋วใหม่ #{renewedTo.ticket_no}</div>
+            <div style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 700 }}>{adjustedType}{' -> '}ตั๋วใหม่ #{renewedTo.ticket_no}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ยอดใหม่ ฿{fmt(renewedTo.amount)}</div>
           </div>
           <span style={{ fontSize: 16, color: 'var(--gold)' }}>›</span>

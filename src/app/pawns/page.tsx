@@ -131,7 +131,7 @@ export default function PawnList() {
                     </div>
                     {adjusted && (
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                        {adjusted.type === 'topup' ? 'เพิ่มยอด' : 'ลดต้น'} -> ตั๋วใหม่ #{adjusted.ticket_no}
+                        {adjusted.type === 'topup' ? 'เพิ่มยอด' : 'ลดต้น'}{' -> '}ตั๋วใหม่ #{adjusted.ticket_no}
                       </div>
                     )}
                   </div>
