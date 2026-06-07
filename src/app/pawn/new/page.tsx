@@ -23,6 +23,20 @@ export default function NewPawn() {
     router.prefetch('/')
   }, [router])
 
+  useEffect(() => {
+    const ticketNo = form.ticket_no.trim()
+    if (ticketNo.length <= 3) {
+      setExistingPawn(null)
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      void checkExisting(ticketNo)
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [form.ticket_no])
+
   function handleImage(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -74,7 +88,7 @@ export default function NewPawn() {
 
   async function checkExisting(ticketNo: string) {
     const { data } = await supabase.from('pawns').select('*').eq('ticket_no', ticketNo).single()
-    if (data) setExistingPawn(data)
+    setExistingPawn(data || null)
   }
 
   function toBase64(file: File): Promise<string> {
@@ -207,9 +221,8 @@ export default function NewPawn() {
               <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>เลขที่ตั๋ว</div>
               <input className="input-field" placeholder="เช่น 23779"
                 value={form.ticket_no}
-                onChange={async e => {
+                onChange={e => {
                   setForm({ ...form, ticket_no: e.target.value })
-                  if (e.target.value.length > 3) await checkExisting(e.target.value)
                 }} />
             </div>
             <div>
