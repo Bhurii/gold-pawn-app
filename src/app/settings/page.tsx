@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession, clearSession, canAccessSettings } from '@/lib/auth'
+import PushPrompt from '@/components/PushPrompt'
 
 export default function Settings() {
   const router = useRouter()
@@ -94,6 +95,8 @@ export default function Settings() {
           <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>ระบบดูแลการลงทุนรับจำนำทอง</div>
         </div>
       </div>
+
+      <PushPrompt />
 
       {/* Logout */}
       <button onClick={handleLogout} className="danger-chip" style={{ width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>

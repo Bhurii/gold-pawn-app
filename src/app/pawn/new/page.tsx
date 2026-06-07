@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { pingPushDispatch } from '@/lib/push-client'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 export default function NewPawn() {
@@ -105,6 +106,7 @@ export default function NewPawn() {
         message: `มีคนมาขายห่านจ้า! ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} โอนตังเลย`,
         pawn_id: pawn.id
       })
+      await pingPushDispatch()
       alert('บันทึกสำเร็จ! รอชาวสวนโอนเงิน')
       router.push(`/pawns/${pawn.id}`)
     } catch (e) {

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
+import PushPrompt from '@/components/PushPrompt'
 import NotificationBell from '@/components/NotificationBell'
 
 type PendingRedeem = {
@@ -160,6 +161,8 @@ export default function Dashboard() {
         </div>
         <div style={{ fontSize: 32, color: 'var(--text-muted)' }}>›</div>
       </div>
+
+      <PushPrompt compact />
 
       <div className="section-label">ห่านทองคำ</div>
       <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>

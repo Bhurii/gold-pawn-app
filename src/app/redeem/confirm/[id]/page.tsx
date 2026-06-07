@@ -4,6 +4,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { toThaiDateLong, fmt } from '@/lib/utils'
+import { pingPushDispatch } from '@/lib/push-client'
 import { errorMessage } from '@/lib/validation'
 
 export default function ConfirmRedeem() {
@@ -41,6 +42,7 @@ export default function ConfirmRedeem() {
         message: `ยืนยันแล้ว! ห่านตั๋ว #${pawn?.ticket_no} กลับบ้านแล้ว ✅`,
         pawn_id: redemption.pawn_id
       })
+      await pingPushDispatch()
       alert('ยืนยันสำเร็จ! ห่านกลับบ้านแล้ว 🐣✅')
       router.replace('/')
     } catch (e) {

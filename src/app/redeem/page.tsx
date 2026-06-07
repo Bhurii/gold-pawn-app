@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import { uploadSlip } from '@/lib/slip-storage'
+import { pingPushDispatch } from '@/lib/push-client'
 import { errorMessage, parseNonNegativeMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -108,6 +109,7 @@ function RedeemContent() {
         message: `ขายห่านได้แล้ว! ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอชาวสวนยืนยัน`,
         pawn_id: selected.id,
       })
+      await pingPushDispatch()
 
       alert('บันทึกสำเร็จ! รอชาวสวนยืนยัน 🐣')
       router.push('/')

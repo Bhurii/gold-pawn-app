@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { uploadSlip } from '@/lib/slip-storage'
+import { pingPushDispatch } from '@/lib/push-client'
 import { errorMessage, parseNonNegativeMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -199,6 +200,7 @@ function RenewContent() {
         message: `ลดต้นตั๋ว #${pawn.ticket_no} -> ตั๋วใหม่ #${form.new_ticket_no} ยอด ฿${fmt(newAmount)}`,
         pawn_id: newPawn.id,
       })
+      await pingPushDispatch()
 
       alert(`ลดต้นสำเร็จ!\nตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}`)
       router.replace(`/pawns/${newPawn.id}`)
