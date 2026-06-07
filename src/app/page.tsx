@@ -155,7 +155,6 @@ export default function Dashboard() {
       <div className="section-label">ห่านทองคำ</div>
       <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold-ivory)', lineHeight: 1.2 }}>ห่านทองคำ</div>
           <span className={pendingCount > 0 ? 'badge-pending home-status-pill' : 'home-status-pill'} data-busy={pendingCount > 0}>
             {pendingCount > 0 ? `${pendingCount} งานค้าง` : 'พร้อมทำงาน'}
           </span>
@@ -182,6 +181,7 @@ export default function Dashboard() {
         </button>
       </div>
 
+      <div className="section-label">ผลผลิต</div>
       <div style={{ marginBottom: 14 }}>
         <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px', width: '100%' }}>
           📊 ดูผลผลิต
