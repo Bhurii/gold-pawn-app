@@ -7,6 +7,7 @@ import {
   isIosDevice,
   isStandaloneMode,
   resolvePushState,
+  sendPushTest,
   type PushState,
 } from '@/lib/push-client'
 
@@ -47,6 +48,19 @@ export default function PushToggleCard({ title = 'แจ้งเตือนแ
     }
   }
 
+  async function handleTest() {
+    setBusy(true)
+    setMessage('')
+    try {
+      await sendPushTest()
+      setMessage('ส่งแจ้งเตือนทดสอบแล้ว ลองปิดแอปไว้แล้วรอดูได้เลย')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'ส่งแจ้งเตือนทดสอบไม่สำเร็จ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const enabled = state === 'enabled'
   const disabledBySetup = state === 'unsupported' || state === 'blocked'
 
@@ -56,7 +70,7 @@ export default function PushToggleCard({ title = 'แจ้งเตือนแ
         <div>
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{title}</div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            เปิดไว้แล้วมือถือตรงเครื่องนี้จะเด้งแม้ไม่ได้เปิดแอป
+            เปิดไว้แล้วมือถือเครื่องนี้จะเด้งแม้ไม่ได้เปิดแอป
           </div>
         </div>
         <button
@@ -115,6 +129,22 @@ export default function PushToggleCard({ title = 'แจ้งเตือนแ
           เครื่องนี้ยังไม่รองรับการแจ้งเตือนแบบแอป หรือยังไม่ได้เปิดจากเบราว์เซอร์ที่รองรับ
         </div>
       )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+        <button className="btn-secondary" type="button" onClick={() => void handleTest()} disabled={busy || state !== 'enabled'}>
+          ทดสอบแจ้งเตือน
+        </button>
+        {enabled && (
+          <button className="btn-secondary" type="button" onClick={() => void handleToggle()} disabled={busy}>
+            ปิดบนเครื่องนี้
+          </button>
+        )}
+        {!enabled && (
+          <button className="btn-secondary" type="button" onClick={() => void handleToggle()} disabled={busy || state === 'unsupported'}>
+            เปิดจากปุ่มนี้
+          </button>
+        )}
+      </div>
 
       {message && (
         <div

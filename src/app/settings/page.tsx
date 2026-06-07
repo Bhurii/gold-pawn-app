@@ -154,14 +154,6 @@ export default function Settings() {
 
       <PushToggleCard />
 
-      <button
-        onClick={handleLogout}
-        className="danger-chip"
-        style={{ width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}
-      >
-        ออกจากระบบ
-      </button>
-
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>🪿 เกี่ยวกับแอป</div>
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
@@ -169,6 +161,14 @@ export default function Settings() {
           <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>ระบบดูแลการลงทุนรับจำนำทอง</div>
         </div>
       </div>
+
+      <button
+        onClick={handleLogout}
+        className="danger-chip"
+        style={{ width: '100%', padding: '16px', borderRadius: 16, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}
+      >
+        ออกจากระบบ
+      </button>
 
       <nav className="bottom-nav">
         <a href="/" className="nav-item"><span className="nav-icon">🐣</span>หน้าแรก</a>

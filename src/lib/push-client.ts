@@ -18,6 +18,17 @@ function base64UrlToUint8Array(value: string) {
   return Uint8Array.from(raw, (char) => char.charCodeAt(0))
 }
 
+async function getRuntimePublicKey() {
+  try {
+    const response = await fetch('/api/push/public-key', { cache: 'no-store' })
+    if (!response.ok) return VAPID_PUBLIC_KEY
+    const payload = await response.json()
+    return typeof payload?.publicKey === 'string' && payload.publicKey ? payload.publicKey : VAPID_PUBLIC_KEY
+  } catch {
+    return VAPID_PUBLIC_KEY
+  }
+}
+
 function mapPermission(): PushState {
   if (typeof window === 'undefined') return 'unsupported'
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -70,6 +81,10 @@ export async function enablePushNotifications() {
     throw new Error('อุปกรณ์นี้ยังไม่รองรับการแจ้งเตือนแบบแอป')
   }
 
+  if (isIosDevice() && !isStandaloneMode()) {
+    throw new Error('บน iPhone ต้องเปิดแอปจากไอคอนที่เพิ่มไว้บนหน้าจอก่อน จึงจะเปิดแจ้งเตือนได้')
+  }
+
   const registration = await registerPushWorker()
   if (!registration) {
     throw new Error('ยังเปิด service worker ไม่ได้')
@@ -82,10 +97,22 @@ export async function enablePushNotifications() {
 
   let subscription = await registration.pushManager.getSubscription()
   if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: base64UrlToUint8Array(VAPID_PUBLIC_KEY),
-    })
+    try {
+      const publicKey = await getRuntimePublicKey()
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: base64UrlToUint8Array(publicKey),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ''
+      if (message.includes('Registration failed')) {
+        throw new Error('Registration failed - push service error. มักเกิดจาก iPhone ยังไม่ได้เปิดจากไอคอนบนหน้าจอ หรือ VAPID key ของเว็บยังไม่ถูกต้อง')
+      }
+      if (message.toLowerCase().includes('permission') || message.toLowerCase().includes('denied')) {
+        throw new Error('ยังไม่ได้อนุญาตแจ้งเตือนบนเครื่องนี้')
+      }
+      throw error
+    }
   }
 
   await saveSubscription(subscription)
