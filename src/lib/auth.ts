@@ -43,16 +43,38 @@ export function clearSession() {
   void supabase.auth.signOut()
 }
 
-export async function loginOwner(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
+export async function hasOwnerPin(): Promise<boolean> {
+  const { data } = await supabase.from('settings').select('owner_pin').single()
+  return Boolean(data?.owner_pin)
+}
+
+export async function loginOwnerWithPin(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
   const { data: settings } = await supabase.from('settings').select('owner_pin').single()
   if (!settings?.owner_pin) {
-    return { user: null, error: 'ยังไม่ได้ตั้ง PIN เจ้าของ กรุณาเข้าไปตั้งในหน้าตั้งค่าก่อน' }
+    return { user: null, error: 'ยังไม่ได้ตั้ง PIN เจ้าของ กรุณาเข้าแบบเดิมก่อน แล้วค่อยไปตั้งในหน้าตั้งค่า' }
   }
   if (settings.owner_pin !== pin) {
     return { user: null, error: 'PIN เจ้าของไม่ถูกต้อง' }
   }
 
   const user: AppUser = { id: 'owner', role: 'owner', display_name: 'เจ้าของ', auth_type: 'pin' }
+  setSession(user)
+  return { user, error: null }
+}
+
+export async function loginOwnerWithPassword(email: string, password: string): Promise<{ user: AppUser | null, error: string | null }> {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error || !data.user) return { user: null, error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
+
+  const { data: role } = await supabase.from('user_roles').select('*').eq('user_id', data.user.id).single()
+  if (!role || role.role !== 'owner') return { user: null, error: 'ไม่มีสิทธิ์เข้าใช้งาน' }
+
+  const user: AppUser = {
+    id: data.user.id,
+    role: 'owner',
+    display_name: role.display_name || 'เจ้าของ',
+    auth_type: 'email',
+  }
   setSession(user)
   return { user, error: null }
 }
