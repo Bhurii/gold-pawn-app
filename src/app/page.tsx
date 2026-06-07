@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
+import BottomNav from '@/components/BottomNav'
 import NotificationBell from '@/components/NotificationBell'
 
 type PendingRedeem = {
@@ -190,12 +191,7 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <nav className="bottom-nav">
-        <a href="/" className="nav-item active"><span className="nav-icon">🐣</span>หน้าแรก</a>
-        <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
-        <a href="/report" className="nav-item"><span className="nav-icon">📊</span>ผลผลิต</a>
-      </nav>
+      <BottomNav />
     </main>
   )
 }

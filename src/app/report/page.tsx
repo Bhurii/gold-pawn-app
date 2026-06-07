@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { toThaiDateShort, fmt } from '@/lib/utils'
+import BottomNav from '@/components/BottomNav'
 
 const MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.']
 
@@ -404,12 +405,7 @@ export default function Report() {
         </>
       )}
 
-      <nav className="bottom-nav">
-        <a href="/" className="nav-item"><span className="nav-icon">🐣</span>หน้าแรก</a>
-        <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
-        <a href="/report" className="nav-item active"><span className="nav-icon">📊</span>ผลผลิต</a>
-      </nav>
+      <BottomNav />
       <div style={{ height: 32 }} />
     </main>
   )

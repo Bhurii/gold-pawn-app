@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { canAccessSettings, clearSession, getOwnerPinValue, getSession, isAdmin, saveOwnerPin } from '@/lib/auth'
+import BottomNav from '@/components/BottomNav'
 import PushToggleCard from '@/components/PushToggleCard'
 
 export default function Settings() {
@@ -170,12 +171,7 @@ export default function Settings() {
         ออกจากระบบ
       </button>
 
-      <nav className="bottom-nav">
-        <a href="/" className="nav-item"><span className="nav-icon">🐣</span>หน้าแรก</a>
-        <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
-        <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนผลไม้</a>
-        <a href="/report" className="nav-item"><span className="nav-icon">📊</span>ผลผลิต</a>
-      </nav>
+      <BottomNav />
       <div style={{ height: 32 }} />
     </main>
   )
