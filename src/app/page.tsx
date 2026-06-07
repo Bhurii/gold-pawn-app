@@ -166,7 +166,7 @@ export default function Dashboard() {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gold-ivory)', lineHeight: 1.2 }}>สร้างใหม่ หรือจัดการของเดิม</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.5, maxWidth: 250 }}>
+            <div style={{ fontSize: 13, color: 'var(--gold-ivory)', marginTop: 6, lineHeight: 1.5, maxWidth: 250, opacity: 0.9 }}>
               หาเบอร์ตั๋วก่อน แล้วค่อยเลือกว่าจะทำอะไรต่อจากรายการนั้น
             </div>
           </div>
