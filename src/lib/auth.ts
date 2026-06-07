@@ -10,6 +10,7 @@ export interface AppUser {
 }
 
 const SESSION_KEY = 'haantong_user'
+const OWNER_PIN_TYPE = 'owner_pin_config'
 
 function isAppUser(value: unknown): value is AppUser {
   if (!value || typeof value !== 'object') return false
@@ -18,6 +19,69 @@ function isAppUser(value: unknown): value is AppUser {
     && (user.role === 'owner' || user.role === 'agent')
     && typeof user.display_name === 'string'
     && (user.auth_type === 'email' || user.auth_type === 'pin')
+}
+
+type OwnerPinRecord = {
+  pin: string
+  updatedAt: string
+}
+
+async function readOwnerPinRecord(): Promise<OwnerPinRecord | null> {
+  const { data: settings } = await supabase.from('settings').select('owner_pin').single()
+  if (settings?.owner_pin) {
+    return {
+      pin: settings.owner_pin,
+      updatedAt: new Date().toISOString(),
+    }
+  }
+
+  const { data } = await supabase
+    .from('notifications')
+    .select('message')
+    .eq('type', OWNER_PIN_TYPE)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data?.message) return null
+
+  try {
+    const parsed = JSON.parse(data.message) as OwnerPinRecord
+    return typeof parsed.pin === 'string' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+export async function saveOwnerPin(pin: string) {
+  const payload: OwnerPinRecord = {
+    pin,
+    updatedAt: new Date().toISOString(),
+  }
+
+  const { data: existing } = await supabase
+    .from('notifications')
+    .select('id')
+    .eq('type', OWNER_PIN_TYPE)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existing?.id) {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ message: JSON.stringify(payload), is_read: true })
+      .eq('id', existing.id)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await supabase.from('notifications').insert({
+    type: OWNER_PIN_TYPE,
+    message: JSON.stringify(payload),
+    is_read: true,
+  })
+  if (error) throw error
 }
 
 export function getSession(): AppUser | null {
@@ -44,16 +108,21 @@ export function clearSession() {
 }
 
 export async function hasOwnerPin(): Promise<boolean> {
-  const { data } = await supabase.from('settings').select('owner_pin').single()
-  return Boolean(data?.owner_pin)
+  const record = await readOwnerPinRecord()
+  return Boolean(record?.pin)
+}
+
+export async function getOwnerPinValue(): Promise<string> {
+  const record = await readOwnerPinRecord()
+  return record?.pin || ''
 }
 
 export async function loginOwnerWithPin(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
-  const { data: settings } = await supabase.from('settings').select('owner_pin').single()
-  if (!settings?.owner_pin) {
+  const record = await readOwnerPinRecord()
+  if (!record?.pin) {
     return { user: null, error: 'ยังไม่ได้ตั้ง PIN เจ้าของ กรุณาเข้าแบบเดิมก่อน แล้วค่อยไปตั้งในหน้าตั้งค่า' }
   }
-  if (settings.owner_pin !== pin) {
+  if (record.pin !== pin) {
     return { user: null, error: 'PIN เจ้าของไม่ถูกต้อง' }
   }
 

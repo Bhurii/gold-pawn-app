@@ -30,6 +30,7 @@ type StoredSubscription = {
 
 const INTERNAL_NOTIFICATION_TYPES = new Set([
   'push_subscription',
+  'owner_pin_config',
   'push_test_marker',
 ])
 

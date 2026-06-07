@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { getSession, clearSession, canAccessSettings } from '@/lib/auth'
+import { canAccessSettings, clearSession, getOwnerPinValue, getSession, saveOwnerPin } from '@/lib/auth'
 import PushPrompt from '@/components/PushPrompt'
 
 export default function Settings() {
@@ -23,14 +23,22 @@ export default function Settings() {
       router.replace('/')
       return
     }
-    supabase.from('settings').select('*').single().then(({ data }) => {
-      if (data) {
-        setBudget(data.invest_budget?.toString() || '')
-        setOwnerPin(data.owner_pin || '')
-        setAgentPin(data.agent_pin || '')
-      }
-    })
+
+    void loadSettings()
   }, [])
+
+  async function loadSettings() {
+    const [{ data }, currentOwnerPin] = await Promise.all([
+      supabase.from('settings').select('*').single(),
+      getOwnerPinValue(),
+    ])
+
+    if (data) {
+      setBudget(data.invest_budget?.toString() || '')
+      setAgentPin(data.agent_pin || '')
+    }
+    setOwnerPin(currentOwnerPin)
+  }
 
   async function handleSaveBudget() {
     setSaving(true)
@@ -48,12 +56,15 @@ export default function Settings() {
       return
     }
     setSavingOwnerPin(true)
-    await supabase.from('settings')
-      .update({ owner_pin: ownerPin })
-      .neq('id', '00000000-0000-0000-0000-000000000000')
-    setSavingOwnerPin(false)
-    setSavedOwnerPin(true)
-    setTimeout(() => setSavedOwnerPin(false), 2000)
+    try {
+      await saveOwnerPin(ownerPin)
+      setSavedOwnerPin(true)
+      setTimeout(() => setSavedOwnerPin(false), 2000)
+    } catch {
+      alert('บันทึก PIN เจ้าของไม่สำเร็จ')
+    } finally {
+      setSavingOwnerPin(false)
+    }
   }
 
   async function handleSaveAgentPin() {
