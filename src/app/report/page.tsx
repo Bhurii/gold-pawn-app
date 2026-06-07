@@ -10,7 +10,8 @@ type ReportState = {
   pawnInterest: number
   loanInterest: number
   budget: number
-  pawned: number
+  activePawnsAmount: number
+  activeLoansAmount: number
   pawnCount: number
   loanCount: number
 }
@@ -68,7 +69,15 @@ export default function Report() {
   const router = useRouter()
   const [selectedPeriod, setSelectedPeriod] = useState<SelectedPeriod>(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
-  const [data, setData] = useState<ReportState>({ pawnInterest: 0, loanInterest: 0, budget: 0, pawned: 0, pawnCount: 0, loanCount: 0 })
+  const [data, setData] = useState<ReportState>({
+    pawnInterest: 0,
+    loanInterest: 0,
+    budget: 0,
+    activePawnsAmount: 0,
+    activeLoansAmount: 0,
+    pawnCount: 0,
+    loanCount: 0,
+  })
   const [pawnDetails, setPawnDetails] = useState<PawnDetail[]>([])
   const [loanDetails, setLoanDetails] = useState<LoanDetail[]>([])
   const [monthlyData, setMonthlyData] = useState<number[]>(Array(12).fill(0))
@@ -77,27 +86,37 @@ export default function Report() {
   const [expandLoan, setExpandLoan] = useState(false)
   const [yearBudget, setYearBudget] = useState(0)
   const [yearPawned, setYearPawned] = useState(0)
+  const [yearLoanPrincipal, setYearLoanPrincipal] = useState(0)
   const [yearInterests, setYearInterests] = useState<PawnInterestRow[]>([])
   const [yearRedemptions, setYearRedemptions] = useState<RedemptionRow[]>([])
   const [yearLoanTxns, setYearLoanTxns] = useState<LoanInterestRow[]>([])
 
   useEffect(() => { loadYearData() }, [selectedYear])
-  useEffect(() => { buildPeriodData() }, [selectedPeriod, yearBudget, yearPawned, yearInterests, yearRedemptions, yearLoanTxns])
+  useEffect(() => { buildPeriodData() }, [selectedPeriod, yearBudget, yearPawned, yearLoanPrincipal, yearInterests, yearRedemptions, yearLoanTxns])
 
   async function loadYearData() {
     setLoading(true)
     const { firstDay, lastDay } = getDateRangeForYear(selectedYear)
 
-    const [{ data: settings }, { data: interests }, { data: redemptions }, { data: loanTxns }, { data: pawns }] = await Promise.all([
+    const [
+      { data: settings },
+      { data: interests },
+      { data: redemptions },
+      { data: loanTxns },
+      { data: pawns },
+      { data: loans },
+    ] = await Promise.all([
       supabase.from('settings').select('invest_budget').single(),
       supabase.from('interest_payments').select('amount, payment_date, pawns(ticket_no)').gte('payment_date', firstDay).lte('payment_date', lastDay),
       supabase.from('redemptions').select('interest_last, redeem_date, pawns(ticket_no)').gte('redeem_date', firstDay).lte('redeem_date', lastDay),
       supabase.from('loan_transactions').select('amount, transaction_date, loans(borrower_name)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay),
       supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active'),
+      supabase.from('loans').select('remaining_principal').eq('status', 'active'),
     ])
 
     setYearBudget(settings?.invest_budget || 0)
     setYearPawned(pawns?.reduce((sum: number, pawn: { amount: number }) => sum + pawn.amount, 0) || 0)
+    setYearLoanPrincipal(loans?.reduce((sum: number, loan: { remaining_principal: number }) => sum + loan.remaining_principal, 0) || 0)
     setYearInterests((interests || []) as PawnInterestRow[])
     setYearRedemptions((redemptions || []) as RedemptionRow[])
     setYearLoanTxns((loanTxns || []) as LoanInterestRow[])
@@ -162,7 +181,8 @@ export default function Report() {
       pawnInterest,
       loanInterest,
       budget: yearBudget,
-      pawned: yearPawned,
+      activePawnsAmount: yearPawned,
+      activeLoansAmount: yearLoanPrincipal,
       pawnCount: nextPawnDetails.length,
       loanCount: nextLoanDetails.length,
     })
@@ -170,16 +190,17 @@ export default function Report() {
   }
 
   const totalInterest = data.pawnInterest + data.loanInterest
+  const totalInvested = data.activePawnsAmount + data.activeLoansAmount
+  const remaining = data.budget - totalInvested
   const roiCurrent = data.budget > 0 ? ((totalInterest / data.budget) * 100).toFixed(2) : '0.00'
-  const roiAnnual = data.budget > 0 ? ((totalInterest / data.budget) * (selectedPeriod === 'all' ? 100 : 12 * 100)).toFixed(selectedPeriod === 'all' ? 2 : 1) : (selectedPeriod === 'all' ? '0.00' : '0.0')
-  const maxBar = Math.max(...monthlyData, 1)
   const isYearView = selectedPeriod === 'all'
+  const maxBar = Math.max(...monthlyData, 1)
   const periodLabel = isYearView ? `ทั้งปี ${selectedYear + 543}` : `${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`
   const currentRoiLabel = isYearView ? 'ROI ทั้งปี' : 'ROI เดือนนี้'
-  const annualRoiLabel = isYearView ? 'เฉลี่ยต่อเดือน' : 'ROI ต่อปี'
-  const annualRoiValue = isYearView
+  const secondaryRoiLabel = isYearView ? 'เฉลี่ยต่อเดือน' : 'ROI ต่อปี'
+  const secondaryRoiValue = isYearView
     ? (data.budget > 0 ? ((totalInterest / data.budget) * 100 / 12).toFixed(2) : '0.00')
-    : roiAnnual
+    : (data.budget > 0 ? ((totalInterest / data.budget) * 12 * 100).toFixed(1) : '0.0')
 
   return (
     <main className="page-container">
@@ -192,24 +213,36 @@ export default function Report() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 14 }}>🥚 ไข่รายเดือน พ.ศ. {selectedYear + 543}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>🥚 ไข่รายเดือน พ.ศ. {selectedYear + 543}</div>
+          <button
+            type="button"
+            className="filter-chip"
+            data-active={isYearView}
+            onClick={() => setSelectedPeriod('all')}
+            style={{ minWidth: 68 }}
+          >
+            ทั้งปี
+          </button>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 80, marginBottom: 8 }}>
           {monthlyData.map((val, i) => (
             <div key={i} onClick={() => setSelectedPeriod(i)}
               style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
               <div style={{
-                width: '100%', borderRadius: '4px 4px 0 0',
+                width: '100%',
+                borderRadius: '4px 4px 0 0',
                 height: `${Math.max((val / maxBar) * 70, val > 0 ? 6 : 2)}px`,
-                background: isYearView
-                  ? (val > 0 ? 'rgba(242,201,76,0.7)' : 'rgba(255,255,255,0.08)')
-                  : i === selectedPeriod
-                    ? 'linear-gradient(180deg,#F2C94C,#C9922A)'
-                    : val > 0 ? 'rgba(242,201,76,0.4)' : 'rgba(255,255,255,0.08)',
+                background: !isYearView && i === selectedPeriod
+                  ? 'linear-gradient(180deg,#F2C94C,#C9922A)'
+                  : val > 0 ? 'rgba(242,201,76,0.45)' : 'rgba(255,255,255,0.08)',
                 transition: 'height 0.3s',
               }} />
             </div>
           ))}
         </div>
+
         <div style={{ display: 'flex', gap: 4 }}>
           {MONTHS_SHORT.map((m, i) => (
             <div key={i} onClick={() => setSelectedPeriod(i)}
@@ -218,15 +251,10 @@ export default function Report() {
             </div>
           ))}
         </div>
-      </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
-        <select value={isYearView ? 'all' : String(selectedPeriod)} onChange={(e) => setSelectedPeriod(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-          className="input-field" style={{ flex: 1, padding: '10px 14px', fontSize: 15 }}>
-          <option value="all">ทั้งปี</option>
-          {MONTHS_SHORT.map((m, i) => <option key={i} value={i}>{m}</option>)}
-        </select>
-        <div style={{ fontSize: 14, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>พ.ศ. {selectedYear + 543}</div>
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' }}>
+          {isYearView ? `ดูยอดรวมทั้งปี ${selectedYear + 543}` : `กำลังดูเดือน ${MONTHS_SHORT[selectedPeriod]} ${selectedYear + 543}`}
+        </div>
       </div>
 
       {loading ? (
@@ -242,8 +270,8 @@ export default function Report() {
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{roiCurrent}%</div>
               </div>
               <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{annualRoiLabel}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{annualRoiValue}%</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{secondaryRoiLabel}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{secondaryRoiValue}%</div>
               </div>
             </div>
           </div>
@@ -319,19 +347,19 @@ export default function Report() {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
             <div className="card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🏡 มูลค่าฟาร์ม</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#85b7eb' }}>฿{fmt(data.pawned)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>เงินลงทุนคงเหลือ</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(remaining)}</div>
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🌾 ข้าวบาร์เลย์</div>
-              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(data.budget - data.pawned)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>มูลค่ารวม</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#85b7eb' }}>฿{fmt(totalInvested)}</div>
             </div>
           </div>
         </>
       )}
 
       <nav className="bottom-nav">
-        <a href="/" className="nav-item"><span className="nav-icon">🥚</span>หน้าแรก</a>
+        <a href="/" className="nav-item"><span className="nav-icon">🐣</span>หน้าแรก</a>
         <a href="/pawns" className="nav-item"><span className="nav-icon">📋</span>ฝูงห่าน</a>
         <a href="/loans" className="nav-item"><span className="nav-icon">🍊</span>สวนส้ม</a>
         <a href="/report" className="nav-item active"><span className="nav-icon">📊</span>ผลผลิต</a>
