@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
+import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { supabase } from '@/lib/supabase'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type TxnType = 'interest' | 'principal_payment' | 'close'
@@ -107,6 +109,27 @@ export default function LoanDetail() {
       } else if (txnType === 'close') {
         await supabase.from('loans').update({ remaining_principal: 0, status: 'closed' }).eq('id', id)
       }
+
+      const notificationType =
+        txnType === 'interest'
+          ? 'loan_interest_paid'
+          : txnType === 'principal_payment'
+            ? 'loan_principal_paid'
+            : 'loan_closed'
+
+      const notificationMessage =
+        txnType === 'interest'
+          ? `เก็บผลตอบแทนสวนผลไม้ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
+          : txnType === 'principal_payment'
+            ? `ตัดต้นสวนผลไม้ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
+            : `ปิดสวนผลไม้ ${loan.borrower_name} เรียบร้อย`
+
+      await supabase.from('notifications').insert({
+        type: notificationType,
+        message: notificationMessage,
+        action_url: createNotificationAction(`/loans/${id}`, ['owner']),
+      })
+      await pingPushDispatch()
 
       const typeLabel = txnType === 'interest' ? 'ตัดดอก' : txnType === 'principal_payment' ? 'ตัดต้น' : 'ปิดหนี้'
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: `${typeLabel}เรียบร้อยแล้ว` })

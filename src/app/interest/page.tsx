@@ -2,10 +2,12 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
-import { toThaiDateShort, fmt } from '@/lib/utils'
+import { createNotificationAction } from '@/lib/notification-meta'
+import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { supabase } from '@/lib/supabase'
+import { fmt, toThaiDateShort } from '@/lib/utils'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -38,25 +40,19 @@ function InterestContent() {
 
   async function loadPawns() {
     setLoadingPawns(true)
-
     let query = supabase
       .from('pawns')
       .select('id, ticket_no, pawn_date, amount')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
 
-    if (pawnIdFromUrl) {
-      query = query.eq('id', pawnIdFromUrl)
-    }
+    if (pawnIdFromUrl) query = query.eq('id', pawnIdFromUrl)
 
     const { data } = await query
-
     if (data) {
       const rows = data as PawnRow[]
       setPawns(rows)
-      if (pawnIdFromUrl) {
-        setSelected(rows[0] || null)
-      }
+      if (pawnIdFromUrl) setSelected(rows[0] || null)
     }
 
     setLoadingPawns(false)
@@ -98,7 +94,9 @@ function InterestContent() {
         type: 'interest_paid',
         message: `ตัดดอกตั๋ว #${selected.ticket_no} ฿${amount.toLocaleString('th-TH')}`,
         pawn_id: selected.id,
+        action_url: createNotificationAction(`/pawns/${selected.id}`, ['owner']),
       })
+      await pingPushDispatch()
 
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'บันทึกการเก็บไข่เรียบร้อยแล้ว' })
       router.push(`/pawns/${selected.id}`)

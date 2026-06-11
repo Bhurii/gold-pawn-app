@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { pingPushDispatch } from '@/lib/push-client'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { toThaiDateLong, fmt } from '@/lib/utils'
@@ -148,6 +149,7 @@ export default function PawnDetail() {
         message: `โอนเงินแล้ว! ตั๋ว #${pawn.ticket_no} ฿${pawn.amount.toLocaleString('th-TH')}`,
         pawn_id: String(id),
       })
+      await pingPushDispatch()
       await loadData()
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'ยืนยันการโอนเงินเรียบร้อยแล้ว' })
     } catch (e) {
@@ -168,6 +170,7 @@ export default function PawnDetail() {
       message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(id),
     })
+    await pingPushDispatch()
     await loadData()
     setUploadingPawnSlip(false)
     showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'เคลียร์รายการเงินสดเรียบร้อยแล้ว' })
@@ -184,6 +187,7 @@ export default function PawnDetail() {
       message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(id),
     })
+    await pingPushDispatch()
     await loadData()
     setUploadingPawnSlip(false)
     showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'บันทึกการฝากเงินล่วงหน้าเรียบร้อยแล้ว' })

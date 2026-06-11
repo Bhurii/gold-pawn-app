@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
+import { pingPushDispatch } from '@/lib/push-client'
+import { supabase } from '@/lib/supabase'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 export default function NewLoan() {
@@ -33,6 +35,7 @@ export default function NewLoan() {
       const principal = parsePositiveMoney(form.principal, 'Loan principal')
       const interestRate = parseNonNegativeMoney(form.interest_rate, 'Interest rate')
       const startDate = requireDate(form.start_date, 'Start date')
+
       const { data: loan, error } = await supabase.from('loans').insert({
         borrower_name: form.borrower_name,
         start_date: startDate,
@@ -51,6 +54,13 @@ export default function NewLoan() {
         transaction_date: startDate,
         note: 'ปล่อยกู้ครั้งแรก',
       })
+
+      await supabase.from('notifications').insert({
+        type: 'loan_created',
+        message: `ปลูกต้นไม้เพิ่ม ${form.borrower_name} ฿${principal.toLocaleString('th-TH')}`,
+        action_url: createNotificationAction(`/loans/${loan.id}`, ['owner']),
+      })
+      await pingPushDispatch()
 
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'สร้างรายการสวนผลไม้ใหม่เรียบร้อยแล้ว' })
       router.push(`/loans/${loan.id}`)

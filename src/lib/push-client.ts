@@ -1,3 +1,4 @@
+import { getSession } from '@/lib/auth'
 import { VAPID_PUBLIC_KEY } from '@/lib/push-config'
 
 export type PushState = 'unsupported' | 'blocked' | 'default' | 'enabled'
@@ -9,6 +10,9 @@ type SubscriptionEnvelope = {
     p256dh?: string
     auth?: string
   }
+  role?: 'owner' | 'agent'
+  userId?: string
+  displayName?: string
 }
 
 function base64UrlToUint8Array(value: string) {
@@ -48,6 +52,9 @@ export async function resolvePushState(): Promise<PushState> {
   if (state !== 'enabled') return state
   const registration = await navigator.serviceWorker.getRegistration()
   const subscription = await registration?.pushManager.getSubscription()
+  if (subscription) {
+    void saveSubscription(subscription).catch(() => {})
+  }
   return subscription ? 'enabled' : 'default'
 }
 
@@ -68,10 +75,16 @@ export async function registerPushWorker() {
 
 async function saveSubscription(subscription: PushSubscription) {
   const json = subscription.toJSON() as SubscriptionEnvelope
+  const session = getSession()
   await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(json),
+    body: JSON.stringify({
+      ...json,
+      role: session?.role || undefined,
+      userId: session?.id || undefined,
+      displayName: session?.display_name || undefined,
+    }),
   })
 }
 

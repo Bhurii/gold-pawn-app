@@ -1,6 +1,7 @@
 import { sign } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { requirePublicEnv } from '@/lib/env'
+import { parseNotificationAction } from '@/lib/notification-meta'
 import { VAPID_PUBLIC_KEY } from '@/lib/push-config'
 import { VAPID_PRIVATE_KEY_PEM, VAPID_SUBJECT } from '@/lib/push-server-secret'
 
@@ -9,6 +10,7 @@ type NotificationRow = {
   type: string
   message: string
   pawn_id?: string | null
+  action_url?: string | null
   created_at: string
 }
 
@@ -26,6 +28,9 @@ type StoredSubscription = {
   }
   enabled?: boolean
   updatedAt?: string
+  role?: 'owner' | 'agent'
+  userId?: string
+  displayName?: string
 }
 
 const INTERNAL_NOTIFICATION_TYPES = new Set([
@@ -113,6 +118,19 @@ function parseStoredSubscription(row: PushSubscriptionRecord): (StoredSubscripti
   }
 }
 
+async function listSubscriptions() {
+  const supabase = supabaseServer()
+  const { data } = await supabase
+    .from('notifications')
+    .select('id,message')
+    .eq('type', 'push_subscription')
+    .order('created_at', { ascending: false })
+
+  return (data || [])
+    .map((row) => parseStoredSubscription(row as PushSubscriptionRecord))
+    .filter((row): row is StoredSubscription & { id: string } => Boolean(row))
+}
+
 export async function upsertPushSubscription(payload: StoredSubscription) {
   const supabase = supabaseServer()
   const nextPayload = {
@@ -120,15 +138,8 @@ export async function upsertPushSubscription(payload: StoredSubscription) {
     enabled: true,
     updatedAt: new Date().toISOString(),
   }
-  const { data } = await supabase
-    .from('notifications')
-    .select('id,message')
-    .eq('type', 'push_subscription')
-    .order('created_at', { ascending: false })
 
-  const existing = (data || [])
-    .map((row) => parseStoredSubscription(row as PushSubscriptionRecord))
-    .find((row) => row?.endpoint === payload.endpoint)
+  const existing = (await listSubscriptions()).find((row) => row.endpoint === payload.endpoint)
 
   if (existing) {
     await supabase
@@ -146,29 +157,79 @@ export async function upsertPushSubscription(payload: StoredSubscription) {
 }
 
 export async function unsubscribePushSubscription(endpoint: string) {
-  const supabase = supabaseServer()
-  const { data } = await supabase
-    .from('notifications')
-    .select('id,message')
-    .eq('type', 'push_subscription')
-
-  const target = (data || [])
-    .map((row) => parseStoredSubscription(row as PushSubscriptionRecord))
-    .find((row) => row?.endpoint === endpoint)
-
+  const target = (await listSubscriptions()).find((row) => row.endpoint === endpoint)
   if (!target) return
   await disableSubscription(target.id, target)
 }
 
-export async function getLatestPushPayload() {
+async function getSubscriptionRole(endpoint?: string | null) {
+  if (!endpoint) return null
+  const subscription = (await listSubscriptions()).find((row) => row.endpoint === endpoint && row.enabled)
+  return subscription?.role || null
+}
+
+function canRoleReceiveType(type: string, role?: 'owner' | 'agent' | null) {
+  if (!role) return true
+
+  const ownerOnlyTypes = new Set([
+    'pawn_created',
+    'interest_paid',
+    'renewed',
+    'topup',
+    'transfer_confirmed',
+    'bypass_cash',
+    'bypass_prepaid',
+    'loan_created',
+    'loan_interest_paid',
+    'loan_principal_paid',
+    'loan_closed',
+    'other_income_added',
+  ])
+
+  const agentAndOwnerTypes = new Set([
+    'redeem_confirmed',
+    'push_test',
+  ])
+
+  if (ownerOnlyTypes.has(type)) return role === 'owner'
+  if (agentAndOwnerTypes.has(type)) return role === 'owner' || role === 'agent'
+  if (type === 'redeem_pending') return role === 'owner'
+  return true
+}
+
+function getNotificationTitle(type: string) {
+  if (type === 'pawn_created') return 'มีตั๋วรอโอนเงิน'
+  if (type === 'redeem_pending') return 'มีรายการรอยืนยันคืน'
+  if (type === 'redeem_confirmed') return 'ยืนยันคืนห่านแล้ว'
+  if (type === 'renewed') return 'ลดต้นสำเร็จ'
+  if (type === 'topup') return 'เพิ่มยอดสำเร็จ'
+  if (type === 'push_test') return 'ทดสอบแจ้งเตือน'
+  if (type === 'transfer_confirmed') return 'ยืนยันโอนเงินแล้ว'
+  if (type === 'interest_paid') return 'มีการตัดดอก'
+  if (type === 'bypass_cash') return 'เคลียร์เงินสดแล้ว'
+  if (type === 'bypass_prepaid') return 'ฝากเงินล่วงหน้าแล้ว'
+  if (type === 'loan_created') return 'มีปลูกต้นไม้เพิ่ม'
+  if (type === 'loan_interest_paid') return 'มีการเก็บผลตอบแทนสวนผลไม้'
+  if (type === 'loan_principal_paid') return 'มีการตัดต้นสวนผลไม้'
+  if (type === 'loan_closed') return 'ปิดสวนผลไม้แล้ว'
+  if (type === 'other_income_added') return 'มีรายได้ใหม่เข้าระบบ'
+  return 'ห่านทองคำ'
+}
+
+export async function getLatestPushPayload(endpoint?: string | null) {
   const supabase = supabaseServer()
+  const role = await getSubscriptionRole(endpoint)
   const { data } = await supabase
     .from('notifications')
-    .select('id,type,message,pawn_id,created_at')
+    .select('id,type,message,pawn_id,action_url,created_at')
     .order('created_at', { ascending: false })
-    .limit(30)
+    .limit(50)
 
-  const latest = (data as NotificationRow[] | null)?.find((item) => !INTERNAL_NOTIFICATION_TYPES.has(item.type))
+  const latest = (data as NotificationRow[] | null)?.find((item) => {
+    if (INTERNAL_NOTIFICATION_TYPES.has(item.type)) return false
+    return canRoleReceiveType(item.type, role)
+  })
+
   if (!latest) {
     return {
       title: 'ห่านทองคำ',
@@ -178,16 +239,9 @@ export async function getLatestPushPayload() {
     }
   }
 
-  let url = latest.pawn_id ? `/pawns/${latest.pawn_id}` : '/'
-  let title = 'ห่านทองคำ'
-
-  if (latest.type === 'pawn_created') title = 'มีตั๋วรอโอนเงิน'
-  else if (latest.type === 'redeem_pending') title = 'มีรายการรอยืนยันคืน'
-  else if (latest.type === 'redeem_confirmed') title = 'ยืนยันคืนห่านแล้ว'
-  else if (latest.type === 'renewed') title = 'ลดต้นสำเร็จ'
-  else if (latest.type === 'topup') title = 'เพิ่มยอดสำเร็จ'
-  else if (latest.type === 'push_test') title = 'ทดสอบแจ้งเตือน'
-  else if (latest.type === 'transfer_confirmed') title = 'ยืนยันโอนเงินแล้ว'
+  const meta = parseNotificationAction(latest.action_url)
+  let url = meta.url || (latest.pawn_id ? `/pawns/${latest.pawn_id}` : '/')
+  const title = getNotificationTitle(latest.type)
 
   if (latest.type === 'redeem_pending' && latest.pawn_id) {
     const { data: redeem } = await supabase
@@ -228,16 +282,9 @@ export async function dispatchPushSignals() {
     return { subscribed: 0, delivered: 0, disabled: true }
   }
 
-  const supabase = supabaseServer()
-  const { data } = await supabase
-    .from('notifications')
-    .select('id,message')
-    .eq('type', 'push_subscription')
-
   const subscriptions = new Map<string, StoredSubscription & { id: string }>()
-  ;(data || []).forEach((row) => {
-    const parsed = parseStoredSubscription(row as PushSubscriptionRecord)
-    if (parsed?.enabled) subscriptions.set(parsed.endpoint, parsed)
+  ;(await listSubscriptions()).forEach((row) => {
+    if (row.enabled) subscriptions.set(row.endpoint, row)
   })
 
   const results = await Promise.allSettled(

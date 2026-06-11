@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
+import { pingPushDispatch } from '@/lib/push-client'
+import { supabase } from '@/lib/supabase'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type OtherIncomeRow = {
@@ -21,7 +23,12 @@ export default function OtherIncome() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ income_date: new Date().toISOString().split('T')[0], amount: '', source: '', note: '' })
+  const [form, setForm] = useState({
+    income_date: new Date().toISOString().split('T')[0],
+    amount: '',
+    source: '',
+    note: '',
+  })
 
   useEffect(() => { void loadData() }, [])
 
@@ -41,12 +48,21 @@ export default function OtherIncome() {
     try {
       const amount = parsePositiveMoney(form.amount, 'Income amount')
       const incomeDate = requireDate(form.income_date, 'Income date')
+
       await supabase.from('other_income').insert({
         income_date: incomeDate,
         amount,
         source: form.source,
         note: form.note,
       })
+
+      await supabase.from('notifications').insert({
+        type: 'other_income_added',
+        message: `มีรายได้ใหม่ ${form.source} ฿${amount.toLocaleString('th-TH')}`,
+        action_url: createNotificationAction('/other-income', ['owner']),
+      })
+      await pingPushDispatch()
+
       setForm({ income_date: new Date().toISOString().split('T')[0], amount: '', source: '', note: '' })
       setShowForm(false)
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'เพิ่มรายได้อื่นเรียบร้อยแล้ว' })
