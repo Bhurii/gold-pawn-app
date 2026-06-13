@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { hitRateLimit } from '@/lib/server/rate-limit'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 type StepLog = {
   name: string
   status: 'ok' | 'quota' | 'error' | 'nokey'

@@ -28,7 +28,14 @@ async function readJson<T>(input: RequestInfo | URL, init?: RequestInit): Promis
     cache: 'no-store',
   })
 
-  const payload = await response.json().catch(() => ({}))
+  const raw = await response.text().catch(() => '')
+  let payload: Record<string, unknown> = {}
+  try {
+    payload = raw ? JSON.parse(raw) as Record<string, unknown> : {}
+  } catch {
+    payload = raw ? { error: raw.slice(0, 160) } : {}
+  }
+
   if (!response.ok) {
     throw new Error(typeof payload?.error === 'string' ? payload.error : 'Request failed')
   }

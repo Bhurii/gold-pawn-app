@@ -3,6 +3,9 @@ import { createPushTestNotification, dispatchPushSignals } from '@/lib/push-serv
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { hitRateLimit } from '@/lib/server/rate-limit'
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 function getClientKey(request: NextRequest) {
   return request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'local'
 }

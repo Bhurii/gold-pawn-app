@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getLatestPushPayload } from '@/lib/push-server'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {

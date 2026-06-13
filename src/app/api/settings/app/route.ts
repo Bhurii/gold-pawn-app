@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { hasOwnerPinRecord, loadSettingsState, maybeUpgradeLegacyPins, saveAgentPin, saveBudget, saveOwnerPin } from '@/lib/server/settings-store'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function unauthorized() {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/admin'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 
+export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 function relationFirst<T>(value: T | T[] | null | undefined) {
