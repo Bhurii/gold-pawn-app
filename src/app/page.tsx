@@ -145,11 +145,13 @@ export default function Dashboard() {
 
       <div className="section-label">ห่านทองคำ</div>
       <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
-          <span className={pendingCount > 0 ? 'badge-pending home-status-pill' : 'home-status-pill'} data-busy={pendingCount > 0}>
-            {pendingCount > 0 ? `${pendingCount} งานค้าง` : 'พร้อมทำงาน'}
-          </span>
-        </div>
+        {pendingCount > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
+            <span className="badge-pending home-status-pill" data-busy>
+              {`${pendingCount} งานค้าง`}
+            </span>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60 }}>
