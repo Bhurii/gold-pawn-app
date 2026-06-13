@@ -119,7 +119,7 @@ export default function PawnList() {
       return { title: 'รอโอนเงิน', detail: 'กำลังดูรายการที่ยังรอโอนเงินเข้าอยู่' }
     }
     if (filter === 'pending_confirm') {
-      return { title: 'รอยืนยันคืน', detail: 'กำลังดูรายการที่รอยืนยันการคืนห่าน' }
+      return { title: 'รอยืนยันไถ่ถอน', detail: 'กำลังดูรายการที่รอยืนยันการไถ่ถอน' }
     }
     return null
   }, [filter])
@@ -143,7 +143,7 @@ export default function PawnList() {
   return (
     <main className="page-container">
       <div style={{ padding: '52px 0 16px' }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)' }}>🔍 ค้นหา / ดูฝูงห่าน</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)' }}>🔍 ค้นหาตั๋ว</div>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
           ค้นหา ดูสถานะ และกดทำงานต่อจากรายการนั้นได้เลย
         </div>
@@ -221,10 +221,10 @@ export default function PawnList() {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                   <button type="button" className="quick-link" onClick={() => router.push(`/interest?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
-                    <span>🥚 เก็บไข่</span>
+                    <span>🥚 ตัดดอก</span>
                   </button>
                   <button type="button" className="quick-link" onClick={() => router.push(`/redeem?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
-                    <span>🐣 คืนห่าน</span>
+                    <span>🐣 ไถ่ถอน</span>
                   </button>
                   <button type="button" className="quick-link" onClick={() => router.push(`/pawns/${pawn.id}`)}>
                     <span>📋 ดูรายละเอียด</span>

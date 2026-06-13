@@ -194,8 +194,8 @@ function canRoleReceiveType(type: string, role?: 'owner' | 'agent' | null) {
 
 function getNotificationTitle(type: string) {
   if (type === 'pawn_created') return 'มีตั๋วรอโอนเงิน'
-  if (type === 'redeem_pending') return 'มีรายการรอยืนยันคืน'
-  if (type === 'redeem_confirmed') return 'ยืนยันคืนห่านแล้ว'
+  if (type === 'redeem_pending') return 'มีรายการรอยืนยันไถ่ถอน'
+  if (type === 'redeem_confirmed') return 'ยืนยันไถ่ถอนแล้ว'
   if (type === 'renewed') return 'ลดต้นสำเร็จ'
   if (type === 'topup') return 'เพิ่มยอดสำเร็จ'
   if (type === 'push_test') return 'ทดสอบแจ้งเตือน'
@@ -203,10 +203,10 @@ function getNotificationTitle(type: string) {
   if (type === 'interest_paid') return 'มีการตัดดอก'
   if (type === 'bypass_cash') return 'เคลียร์เงินสดแล้ว'
   if (type === 'bypass_prepaid') return 'ฝากเงินล่วงหน้าแล้ว'
-  if (type === 'loan_created') return 'มีปลูกต้นไม้เพิ่ม'
-  if (type === 'loan_interest_paid') return 'มีการเก็บผลตอบแทนสวนผลไม้'
-  if (type === 'loan_principal_paid') return 'มีการตัดต้นสวนผลไม้'
-  if (type === 'loan_closed') return 'ปิดสวนผลไม้แล้ว'
+  if (type === 'loan_created') return 'มีรายการปล่อยกู้ใหม่'
+  if (type === 'loan_interest_paid') return 'มีการรับดอกสินเชื่อ'
+  if (type === 'loan_principal_paid') return 'มีการตัดต้นสินเชื่อ'
+  if (type === 'loan_closed') return 'ปิดสินเชื่อแล้ว'
   if (type === 'other_income_added') return 'มีรายได้ใหม่เข้าระบบ'
   return 'ห่านทองคำ'
 }

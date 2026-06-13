@@ -57,12 +57,12 @@ export default function NewLoan() {
 
       await supabase.from('notifications').insert({
         type: 'loan_created',
-        message: `ปลูกต้นไม้เพิ่ม ${form.borrower_name} ฿${principal.toLocaleString('th-TH')}`,
+        message: `ปล่อยกู้ใหม่ ${form.borrower_name} ฿${principal.toLocaleString('th-TH')}`,
         action_url: createNotificationAction(`/loans/${loan.id}`, ['owner']),
       })
       await pingPushDispatch()
 
-      showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'สร้างรายการสวนผลไม้ใหม่เรียบร้อยแล้ว' })
+      showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'สร้างรายการสินเชื่อใหม่เรียบร้อยแล้ว' })
       router.push(`/loans/${loan.id}`)
     } catch (e) {
       showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
@@ -75,7 +75,7 @@ export default function NewLoan() {
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>ปลูกต้นไม้เพิ่ม</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>ปล่อยกู้ใหม่</div>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

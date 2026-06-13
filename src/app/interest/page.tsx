@@ -98,7 +98,7 @@ function InterestContent() {
       })
       await pingPushDispatch()
 
-      showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'บันทึกการเก็บไข่เรียบร้อยแล้ว' })
+      showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'บันทึกการตัดดอกเรียบร้อยแล้ว' })
       router.push(`/pawns/${selected.id}`)
     } catch (e) {
       showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
@@ -113,7 +113,7 @@ function InterestContent() {
     <main className="page-container">
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.push(backTarget)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>เก็บไข่</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>ตัดดอก</div>
       </div>
 
       {loadingPawns ? (
@@ -170,7 +170,7 @@ function InterestContent() {
                 <input className="input-field" type="number" placeholder="เช่น 600" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่เก็บไข่</div>
+                <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่ตัดดอก</div>
                 <input className="input-field" type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
               </div>
               <div style={{ marginBottom: 20 }}>
@@ -197,10 +197,10 @@ function InterestContent() {
               </div>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>หมายเหตุ (ถ้ามี)</div>
-                <input className="input-field" placeholder="เช่น เก็บไข่เดือนนี้" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
+                <input className="input-field" placeholder="เช่น ตัดดอกเดือนนี้" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
               </div>
               <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-                {saving ? 'กำลังบันทึก...' : 'บันทึกการเก็บไข่'}
+                {saving ? 'กำลังบันทึก...' : 'บันทึกการตัดดอก'}
               </button>
             </>
           )}

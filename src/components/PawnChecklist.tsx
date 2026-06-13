@@ -72,7 +72,7 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
       </CheckRow>
 
       {/* 2. โอนเงิน */}
-      <CheckRow done={hasTransfer && !isPendingTransfer} pending={isPendingTransfer && isOwner} label={isPendingTransfer ? '💸 รอชาวสวนโอนเงิน' : '💸 โอนเงินแล้ว'} expanded={expandTransfer} onToggle={() => setExpandTransfer(!expandTransfer)}>
+      <CheckRow done={hasTransfer && !isPendingTransfer} pending={isPendingTransfer && isOwner} label={isPendingTransfer ? '💸 รอโอนเงิน' : '💸 โอนเงินแล้ว'} expanded={expandTransfer} onToggle={() => setExpandTransfer(!expandTransfer)}>
         {isPendingTransfer && isOwner ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>เลือกวิธีโอนเงิน ฿{fmt(pawn.amount)}</div>
@@ -113,7 +113,7 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
 
       {/* 3. ประวัติตัดดอก */}
       {pawn.tx_status === 'active' && (
-        <CheckRow done={interests.length > 0} pending={false} label={`🥚 เก็บไข่ ${interests.length > 0 ? `${interests.length} ครั้ง รวม ฿${fmt(totalInterest)}` : '(ยังไม่มี)'}`} expanded={expandInterest} onToggle={() => setExpandInterest(!expandInterest)}>
+        <CheckRow done={interests.length > 0} pending={false} label={`🥚 ตัดดอก ${interests.length > 0 ? `${interests.length} ครั้ง รวม ฿${fmt(totalInterest)}` : '(ยังไม่มี)'}`} expanded={expandInterest} onToggle={() => setExpandInterest(!expandInterest)}>
           {interests.length > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {interests.map((int: any, i: number) => (
@@ -134,13 +134,13 @@ export default function PawnChecklist({ pawn, transferSlips, interests, redempti
                 <span style={{ fontWeight: 800, color: 'var(--gold)', fontSize: 16 }}>฿{fmt(totalInterest)}</span>
               </div>
             </div>
-          ) : <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>ยังไม่มีการเก็บไข่</div>}
+          ) : <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>ยังไม่มีการตัดดอก</div>}
         </CheckRow>
       )}
 
       {/* 4. ไถ่ถอน */}
       {redemption && (
-        <CheckRow done={true} pending={false} label={`🐣 คืนห่านแล้ว · ${toThaiDateShort(redemption.redeem_date)}`} expanded={expandRedeem} onToggle={() => setExpandRedeem(!expandRedeem)}>
+        <CheckRow done={true} pending={false} label={`🐣 ไถ่ถอนแล้ว · ${toThaiDateShort(redemption.redeem_date)}`} expanded={expandRedeem} onToggle={() => setExpandRedeem(!expandRedeem)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
             <span style={{ color: 'var(--text-muted)' }}>ดอกรวม</span>
             <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption.interest_total)}</span>

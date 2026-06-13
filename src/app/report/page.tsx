@@ -60,7 +60,7 @@ export default function Report() {
       const response = await fetch(`/api/report-summary?year=${year}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
-        throw new Error(payload?.error || 'โหลดข้อมูลผลผลิตไม่สำเร็จ')
+        throw new Error(payload?.error || 'โหลดข้อมูลรายงานไม่สำเร็จ')
       }
       setReport(payload as ReportPayload)
     } finally {
@@ -107,7 +107,7 @@ export default function Report() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 ผลผลิต</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>📊 รายงาน</div>
         <select
           value={selectedYear}
           onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -122,7 +122,7 @@ export default function Report() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>🥚 ไข่รายเดือน พ.ศ. {selectedYear + 543}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)' }}>📈 รายได้รายเดือน พ.ศ. {selectedYear + 543}</div>
           <button
             type="button"
             className="filter-chip"
@@ -185,7 +185,7 @@ export default function Report() {
       ) : (
         <>
           <div className="panel-gold" style={{ padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>🥚 ไข่ทั้งหมด {periodLabel}</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>📈 รายได้รวม {periodLabel}</div>
             <div style={{ fontSize: 36, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(totalInterest)}</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 14 }}>
               <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
@@ -203,7 +203,7 @@ export default function Report() {
             <div onClick={() => setExpandPawn(!expandPawn)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
               <span style={{ fontSize: 28 }}>🥚</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>ไข่จากห่านทองคำ</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>ดอกจากจำนำทอง</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filteredPawnDetails.length} รายการ</div>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -235,7 +235,7 @@ export default function Report() {
             <div onClick={() => setExpandLoan(!expandLoan)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
               <span style={{ fontSize: 28 }}>🍊</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 16, fontWeight: 700 }}>ผลผลิตจากสวนผลไม้</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>ดอกจากสินเชื่อ</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filteredLoanDetails.length} รายการ</div>
               </div>
               <div style={{ textAlign: 'right' }}>

@@ -271,10 +271,10 @@ export default function PawnDetail() {
 
       {pawn.status === 'active' && pawn.tx_status === 'active' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => router.push(`/interest?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>เก็บไข่</button>
+          <button onClick={() => router.push(`/interest?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>ตัดดอก</button>
           <button onClick={() => router.push(`/renew?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>ลดต้น</button>
           <button onClick={() => router.push(`/topup?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>เพิ่มยอด</button>
-          <button onClick={() => router.push(`/redeem?pawn_id=${id}`)} className="btn-primary" style={{ fontSize: 17 }}>คืนห่าน</button>
+          <button onClick={() => router.push(`/redeem?pawn_id=${id}`)} className="btn-primary" style={{ fontSize: 17 }}>ไถ่ถอน</button>
         </div>
       )}
       <div style={{ height: 32 }} />

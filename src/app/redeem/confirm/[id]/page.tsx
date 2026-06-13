@@ -73,11 +73,11 @@ export default function ConfirmRedeem() {
       await supabase.from('pawns').update({ status: 'redeemed', tx_status: 'redeemed' }).eq('id', redemption.pawn_id)
       await supabase.from('notifications').insert({
         type: 'redeem_confirmed',
-        message: `ยืนยันแล้ว! ห่านตั๋ว #${pawn?.ticket_no} กลับบ้านแล้ว`,
+        message: `ยืนยันไถ่ถอนแล้ว ตั๋ว #${pawn?.ticket_no}`,
         pawn_id: redemption.pawn_id,
       })
       await pingPushDispatch()
-      showToast({ tone: 'success', title: 'ยืนยันสำเร็จ', message: 'ห่านกลับบ้านแล้ว' })
+      showToast({ tone: 'success', title: 'ยืนยันสำเร็จ', message: 'ไถ่ถอนเรียบร้อยแล้ว' })
       router.replace('/')
     } catch (e) {
       showToast({ tone: 'error', title: 'ยืนยันไม่สำเร็จ', message: errorMessage(e) })
@@ -101,7 +101,7 @@ export default function ConfirmRedeem() {
 
       <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.push(backTarget)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>ยืนยันขายห่าน</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>ยืนยันไถ่ถอน</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -116,7 +116,7 @@ export default function ConfirmRedeem() {
         <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(pawn?.amount || 0)}</div>
         <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>วันที่คืน: {toThaiDateLong(redemption?.redeem_date || '')}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
-          <span>ไข่รวมทั้งหมด</span>
+          <span>ดอกรวมทั้งหมด</span>
           <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption?.interest_total || 0)}</span>
         </div>
       </div>
@@ -146,7 +146,7 @@ export default function ConfirmRedeem() {
       </div>
 
       <button className="btn-primary" onClick={handleConfirm} disabled={confirming} style={{ fontSize: 18, marginBottom: 12 }}>
-        {confirming ? 'กำลังยืนยัน...' : 'ยืนยัน ห่านกลับบ้านแล้ว'}
+        {confirming ? 'กำลังยืนยัน...' : 'ยืนยันไถ่ถอนแล้ว'}
       </button>
       <button onClick={() => router.push(backTarget)} className="btn-secondary" style={{ fontSize: 16 }}>
         ยังไม่ยืนยัน

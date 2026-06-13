@@ -143,7 +143,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="section-label">ห่านทองคำ</div>
+      <div className="section-label">จำนำทอง</div>
       <div className="card home-action-card" style={{ marginBottom: 14, padding: 16 }}>
         {pendingCount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
@@ -155,30 +155,30 @@ export default function Dashboard() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
           <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60 }}>
-            🪺 รับฝากห่าน
+            🪺 รับจำนำ
           </button>
           <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)' }}>
-            🔍 ค้นหา / ดูฝูงห่าน
+            🔍 ค้นหาตั๋ว
           </button>
         </div>
       </div>
 
-      <div className="section-label">สวนผลไม้</div>
+      <div className="section-label">สินเชื่อ</div>
       <div className="card" style={{ marginBottom: 14, padding: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
-            🌱 ปลูกต้นไม้เพิ่ม
+            🌱 ปล่อยกู้ใหม่
           </button>
           <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>
-            🍊 ชมสวนผลไม้
+            🍊 ดูสินเชื่อ
           </button>
         </div>
       </div>
 
-      <div className="section-label">ผลผลิต</div>
+      <div className="section-label">รายงาน</div>
       <div className="card" style={{ marginBottom: 14, padding: 16 }}>
         <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px', width: '100%' }}>
-          📊 ดูผลผลิต
+          📊 ดูรายงาน
         </button>
       </div>
 

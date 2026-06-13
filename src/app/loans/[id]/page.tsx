@@ -119,10 +119,10 @@ export default function LoanDetail() {
 
       const notificationMessage =
         txnType === 'interest'
-          ? `เก็บผลตอบแทนสวนผลไม้ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
+          ? `รับดอกสินเชื่อ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
           : txnType === 'principal_payment'
-            ? `ตัดต้นสวนผลไม้ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
-            : `ปิดสวนผลไม้ ${loan.borrower_name} เรียบร้อย`
+            ? `ตัดต้นสินเชื่อ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
+            : `ปิดสินเชื่อ ${loan.borrower_name} เรียบร้อย`
 
       await supabase.from('notifications').insert({
         type: notificationType,

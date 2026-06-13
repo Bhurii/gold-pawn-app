@@ -114,12 +114,12 @@ function RedeemContent() {
       await supabase.from('pawns').update({ tx_status: 'pending_redeem' }).eq('id', selected.id)
       await supabase.from('notifications').insert({
         type: 'redeem_pending',
-        message: `ขายห่านได้แล้ว! ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอชาวสวนยืนยัน`,
+        message: `มีรายการไถ่ถอน ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอยืนยัน`,
         pawn_id: selected.id,
       })
       await pingPushDispatch()
 
-      showToast({ tone: 'success', title: 'ส่งคำขอแล้ว', message: 'รอชาวสวนยืนยันการคืนห่าน' })
+      showToast({ tone: 'success', title: 'ส่งคำขอแล้ว', message: 'รอยืนยันการไถ่ถอน' })
       router.push('/')
     } catch (e) {
       showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
@@ -137,7 +137,7 @@ function RedeemContent() {
       <main className="page-container">
         <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => router.push(selected ? `/pawns/${selected.id}` : '/pawns')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>คืนห่าน</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>ไถ่ถอน</div>
         </div>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 16 }}>กำลังโหลด...</div>
       </main>
@@ -149,11 +149,11 @@ function RedeemContent() {
       <main className="page-container">
         <div style={{ padding: '56px 0 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => router.push('/pawns')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>คืนห่าน</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>ไถ่ถอน</div>
         </div>
-        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>เลือกห่านที่จะคืน</div>
+        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>เลือกตั๋วที่จะไถ่ถอน</div>
         {pawns.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 16 }}>ไม่มีห่านในฝูง</div>
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 16 }}>ไม่มีตั๋วที่ใช้งานอยู่</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {pawns.map((pawn) => (
@@ -176,7 +176,7 @@ function RedeemContent() {
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => (pawnIdFromUrl && selected ? router.push(`/pawns/${selected.id}`) : setStep('select'))} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>คืนห่าน #{selected?.ticket_no}</div>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>ไถ่ถอน #{selected?.ticket_no}</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -185,7 +185,7 @@ function RedeemContent() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>Step 1/2</div>
       </div>
       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-        เจ้หลุยอัปข้อมูล → รอชาวสวนยืนยัน
+        บันทึกข้อมูล → รอยืนยันรายการ
       </div>
 
       <div className="panel-gold" style={{ borderRadius: 18, padding: 18, marginBottom: 16 }}>
@@ -193,7 +193,7 @@ function RedeemContent() {
         <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(selected?.amount || 0)}</div>
         {interestPayments.length > 0 && (
           <div style={{ fontSize: 13, color: 'var(--gold-light)', marginTop: 6 }}>
-            เก็บไข่แล้ว {interestPayments.length} ครั้ง รวม ฿{fmt(interestPaid)}
+            ตัดดอกแล้ว {interestPayments.length} ครั้ง รวม ฿{fmt(interestPaid)}
           </div>
         )}
       </div>
@@ -238,25 +238,25 @@ function RedeemContent() {
 
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>3. ดอกเบี้ยงวดสุดท้าย</div>
       <input className="input-field" type="number" placeholder="฿ จำนวนดอก" value={form.interest_last} onChange={(e) => setForm({ ...form, interest_last: e.target.value })} style={{ marginBottom: 12 }} />
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>วันที่คืนห่าน</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>วันที่ไถ่ถอน</div>
       <input className="input-field" type="date" value={form.redeem_date} onChange={(e) => setForm({ ...form, redeem_date: e.target.value })} style={{ marginBottom: 16 }} />
 
       <div className="card" style={{ background: '#0A0A0A', borderRadius: 16, padding: 18, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>สรุปไข่ทั้งหมด</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>สรุปดอกรวม</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
-          <span>เก็บไข่แล้ว</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestPaid)}</span>
+          <span>ตัดดอกแล้ว</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestPaid)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          <span>ไข่งวดสุดท้าย</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestLast)}</span>
+          <span>ดอกงวดสุดท้าย</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestLast)}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 800, borderTop: '0.5px solid rgba(242,201,76,0.2)', paddingTop: 12 }}>
-          <span style={{ color: 'var(--text-muted)' }}>ไข่รวมทั้งหมด</span>
+          <span style={{ color: 'var(--text-muted)' }}>ดอกรวมทั้งหมด</span>
           <span style={{ color: 'var(--gold)' }}>฿{fmt(interestTotal)}</span>
         </div>
       </div>
 
       <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-        {saving ? 'กำลังบันทึก...' : 'ส่งให้ชาวสวนยืนยัน'}
+        {saving ? 'กำลังบันทึก...' : 'ส่งรอยืนยันไถ่ถอน'}
       </button>
       <div style={{ height: 32 }} />
     </main>

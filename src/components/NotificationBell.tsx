@@ -212,7 +212,7 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
             >
               <span style={{ fontSize: 22, flexShrink: 0 }}>🪿</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>มีคนมาขายห่านจ้า!</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>มีรายการรับจำนำใหม่</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   ตั๋ว #{pawn.ticket_no} · ฿{pawn.amount?.toLocaleString('th-TH')} · โอนตังเลย
                 </div>
@@ -242,7 +242,7 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
             >
               <span style={{ fontSize: 22, flexShrink: 0 }}>🐣</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-light)' }}>ขายห่านได้แล้ว!</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-light)' }}>มีรายการไถ่ถอน</div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   ตั๋ว #{redeem.pawns?.ticket_no} · รอยืนยัน
                 </div>

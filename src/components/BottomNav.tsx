@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation'
 
 const items = [
   { href: '/', label: 'หน้าแรก', icon: '🐣' },
-  { href: '/pawns', label: 'ฝูงห่าน', icon: '📋' },
-  { href: '/loans', label: 'สวนผลไม้', icon: '🍊' },
-  { href: '/report', label: 'ผลผลิต', icon: '📊' },
+  { href: '/pawns', label: 'ตั๋วจำนำ', icon: '📋' },
+  { href: '/loans', label: 'สินเชื่อ', icon: '🍊' },
+  { href: '/report', label: 'รายงาน', icon: '📊' },
 ]
 
 export default function BottomNav() {

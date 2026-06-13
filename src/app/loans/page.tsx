@@ -47,7 +47,7 @@ export default function LoanList() {
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>สวนผลไม้</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>สินเชื่อ</div>
         <button onClick={() => router.push('/loans/new')} style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#C9922A,#F2C94C)', color: '#080808', border: 'none', borderRadius: 12, padding: '8px 18px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
           + ใหม่
         </button>
