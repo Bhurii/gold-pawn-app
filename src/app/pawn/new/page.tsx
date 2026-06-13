@@ -105,7 +105,7 @@ export default function NewPawn() {
       .from('pawns')
       .select('id, ticket_no, pawn_date, amount, status, tx_status')
       .eq('ticket_no', ticketNo)
-      .single()
+      .maybeSingle()
     setExistingPawn((data as ExistingPawn | null) || null)
   }
 

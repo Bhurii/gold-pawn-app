@@ -1,0 +1,90 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/server/admin'
+import { readSessionFromRequest } from '@/lib/server/app-session'
+
+export const dynamic = 'force-dynamic'
+
+function relationFirst<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) return value[0]
+  return value || null
+}
+
+export async function GET(request: NextRequest) {
+  const user = readSessionFromRequest(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const year = Number(new URL(request.url).searchParams.get('year'))
+  if (!Number.isInteger(year) || year < 2024 || year > 2100) {
+    return NextResponse.json({ error: 'Invalid year' }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+  const firstDay = `${year}-01-01`
+  const lastDay = `${year}-12-31`
+
+  const [
+    { data: settings },
+    { data: interests },
+    { data: redemptions },
+    { data: loanTxns },
+    { data: pawns },
+    { data: loans },
+  ] = await Promise.all([
+    supabase.from('settings').select('invest_budget').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('interest_payments').select('amount, payment_date, pawns(ticket_no)').gte('payment_date', firstDay).lte('payment_date', lastDay),
+    supabase.from('redemptions').select('interest_last, redeem_date, pawns(ticket_no)').gte('redeem_date', firstDay).lte('redeem_date', lastDay),
+    supabase.from('loan_transactions').select('amount, transaction_date, loans(borrower_name)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay),
+    supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active'),
+    supabase.from('loans').select('remaining_principal').eq('status', 'active'),
+  ])
+
+  const monthlyData = Array.from({ length: 12 }, () => 0)
+  const pawnDetails: Array<{ ticket?: string; amount: number; date: string; type: string }> = []
+  const loanDetails: Array<{ name?: string; amount: number; date: string }> = []
+
+  for (const interest of interests || []) {
+    const month = new Date(`${interest.payment_date}T00:00:00`).getMonth()
+    const amount = Number(interest.amount || 0)
+    monthlyData[month] += amount
+    pawnDetails.push({
+      ticket: relationFirst(interest.pawns)?.ticket_no,
+      amount,
+      date: interest.payment_date,
+      type: 'ตัดดอก',
+    })
+  }
+
+  for (const redemption of redemptions || []) {
+    const month = new Date(`${redemption.redeem_date}T00:00:00`).getMonth()
+    const amount = Number(redemption.interest_last || 0)
+    monthlyData[month] += amount
+    pawnDetails.push({
+      ticket: relationFirst(redemption.pawns)?.ticket_no,
+      amount,
+      date: redemption.redeem_date,
+      type: 'ไถ่ถอน',
+    })
+  }
+
+  for (const txn of loanTxns || []) {
+    const month = new Date(`${txn.transaction_date}T00:00:00`).getMonth()
+    const amount = Number(txn.amount || 0)
+    monthlyData[month] += amount
+    loanDetails.push({
+      name: relationFirst(txn.loans)?.borrower_name,
+      amount,
+      date: txn.transaction_date,
+    })
+  }
+
+  return NextResponse.json({
+    budget: Number(settings?.invest_budget || 0),
+    activePawnsAmount: (pawns || []).reduce((sum, pawn) => sum + Number(pawn.amount || 0), 0),
+    activeLoansAmount: (loans || []).reduce((sum, loan) => sum + Number(loan.remaining_principal || 0), 0),
+    monthlyData,
+    pawnDetails: pawnDetails.sort((a, b) => b.date.localeCompare(a.date)),
+    loanDetails: loanDetails.sort((a, b) => b.date.localeCompare(a.date)),
+  })
+}

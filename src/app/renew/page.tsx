@@ -26,6 +26,14 @@ type OcrTicketData = {
   date_note?: string
 }
 
+type TransferOcrData = {
+  amount?: number
+  transfer_date?: string
+  transfer_time?: string
+  receiver_name?: string
+  notes?: string
+}
+
 function RenewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -43,7 +51,9 @@ function RenewContent() {
   const [dateConfidence, setDateConfidence] = useState<'clear' | 'suggested' | 'unknown' | 'manual'>('manual')
   const [dateNote, setDateNote] = useState('')
   const [dateConfirmed, setDateConfirmed] = useState(true)
-  const [ocrAmount, setOcrAmount] = useState<number | null>(null)
+  const [ticketOcrAmount, setTicketOcrAmount] = useState<number | null>(null)
+  const [transferOcrAmount, setTransferOcrAmount] = useState<number | null>(null)
+  const [transferOcrNote, setTransferOcrNote] = useState('')
   const [form, setForm] = useState({
     principal_paid: '',
     interest: '',
@@ -58,7 +68,7 @@ function RenewContent() {
   }, [pawnIdFromUrl])
 
   async function loadPawn(id: string) {
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes').eq('id', id).single()
+    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes').eq('id', id).maybeSingle()
     if (data) setPawn(data as PawnRow)
     setLoading(false)
   }
@@ -77,9 +87,9 @@ function RenewContent() {
       setForm((current) => ({ ...current, new_ticket_no: scan.ticket_no || current.new_ticket_no }))
     }
     if (typeof scan.amount === 'number' && Number.isFinite(scan.amount) && scan.amount > 0) {
-      setOcrAmount(scan.amount)
+      setTicketOcrAmount(scan.amount)
     } else {
-      setOcrAmount(null)
+      setTicketOcrAmount(null)
     }
 
     if (scan.pawn_date) {
@@ -108,7 +118,7 @@ function RenewContent() {
       const res = await fetch('/api/ocr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ base64, mimeType: file.type }),
+        body: JSON.stringify({ base64, mimeType: file.type, mode: 'ticket' }),
       })
       const json = await res.json()
       if (json.success && json.data) {
@@ -120,6 +130,29 @@ function RenewContent() {
       setDateNote('AI อ่านข้อมูลไม่สำเร็จ ลองกรอกวันที่เองได้เลย')
     } finally {
       setScanning(false)
+    }
+  }
+
+  async function scanTransferSlip(file: File) {
+    try {
+      const base64 = await toBase64(file)
+      const res = await fetch('/api/ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mimeType: file.type, mode: 'transfer' }),
+      })
+      const json = await res.json()
+      if (json.success && json.data) {
+        const data = json.data as TransferOcrData
+        setTransferOcrAmount(typeof data.amount === 'number' && Number.isFinite(data.amount) ? data.amount : null)
+        setTransferOcrNote(data.notes || '')
+      } else {
+        setTransferOcrAmount(null)
+        setTransferOcrNote(json.error || '')
+      }
+    } catch {
+      setTransferOcrAmount(null)
+      setTransferOcrNote('AI อ่านสลิปไม่สำเร็จ')
     }
   }
 
@@ -222,7 +255,8 @@ function RenewContent() {
   const principalPaid = Number(form.principal_paid) || 0
   const newAmount = pawn.amount - principalPaid
   const transferExpected = interest + principalPaid
-  const amountMismatch = ocrAmount !== null && principalPaid > 0 && ocrAmount !== newAmount
+  const ticketAmountMismatch = ticketOcrAmount !== null && principalPaid > 0 && ticketOcrAmount !== newAmount
+  const transferAmountMismatch = transferOcrAmount !== null && transferExpected > 0 && transferOcrAmount !== transferExpected
 
   return (
     <main className="page-container">
@@ -255,7 +289,7 @@ function RenewContent() {
           {newTicketPreview ? (
             <div style={{ position: 'relative', marginBottom: 10 }}>
               <img src={newTicketPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 200, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} alt="new ticket" />
-              <button onClick={() => { setNewTicketPreview(''); setNewTicketImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
+              <button onClick={() => { setNewTicketPreview(''); setNewTicketImage(null); setTicketOcrAmount(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
               {scanning && <div style={{ textAlign: 'center', color: 'var(--gold)', fontSize: 13, marginTop: 6 }}>AI กำลังอ่านข้อมูลตั๋วใหม่...</div>}
             </div>
           ) : (
@@ -316,9 +350,9 @@ function RenewContent() {
             <span style={{ color: 'var(--text-muted)' }}>ยอดตั๋วใหม่</span>
             <span style={{ color: newAmount > 0 ? 'var(--gold)' : 'var(--danger-soft)' }}>฿{fmt(Math.max(newAmount, 0))}</span>
           </div>
-          {ocrAmount !== null && (
-            <div style={{ marginTop: 10, fontSize: 13, color: amountMismatch ? 'var(--danger-soft)' : 'var(--gold-light)' }}>
-              {amountMismatch ? `AI อ่านยอดจากรูปได้ ฿${fmt(ocrAmount)} ซึ่งไม่ตรงกับยอดใหม่ที่คำนวณ` : `AI อ่านยอดจากรูปตรงกับยอดใหม่ ฿${fmt(ocrAmount)}`}
+          {ticketOcrAmount !== null && (
+            <div style={{ marginTop: 10, fontSize: 13, color: ticketAmountMismatch ? 'var(--danger-soft)' : 'var(--gold-light)' }}>
+              {ticketAmountMismatch ? `AI อ่านยอดจากรูปตั๋วได้ ฿${fmt(ticketOcrAmount)} ซึ่งไม่ตรงกับยอดใหม่ที่คำนวณ` : `AI อ่านยอดจากรูปตั๋วตรงกับยอดใหม่ ฿${fmt(ticketOcrAmount)}`}
             </div>
           )}
         </div>
@@ -328,16 +362,16 @@ function RenewContent() {
           {transferPreview ? (
             <div style={{ position: 'relative' }}>
               <img src={transferPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 180, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} alt="slip" />
-              <button onClick={() => { setTransferPreview(''); setTransferImage(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
+              <button onClick={() => { setTransferPreview(''); setTransferImage(null); setTransferOcrAmount(null); setTransferOcrNote('') }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                <input type="file" accept="image/*" capture="environment" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
+                <input type="file" accept="image/*" capture="environment" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)); void scanTransferSlip(file) } }} style={{ display: 'none' }} />
                 <span style={{ fontSize: 26 }}>📷</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>ถ่ายรูป</span>
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 14, padding: '14px', cursor: 'pointer', background: 'var(--black-800)' }}>
-                <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)) } }} style={{ display: 'none' }} />
+                <input type="file" accept="image/*" onChange={(e) => { const file = e.target.files?.[0]; if (file) { setTransferImage(file); setTransferPreview(URL.createObjectURL(file)); void scanTransferSlip(file) } }} style={{ display: 'none' }} />
                 <span style={{ fontSize: 26 }}>🖼️</span><span style={{ color: 'var(--gold)', fontSize: 13, fontWeight: 600 }}>เลือกจากคลัง</span>
               </label>
             </div>
@@ -345,6 +379,16 @@ function RenewContent() {
           {transferExpected > 0 && (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
               ยอดที่ควรโอนตามงานนี้: ฿{fmt(transferExpected)}
+            </div>
+          )}
+          {transferOcrAmount !== null && (
+            <div style={{ fontSize: 13, color: transferAmountMismatch ? 'var(--danger-soft)' : 'var(--gold-light)', marginTop: 8 }}>
+              {transferAmountMismatch ? `OCR อ่านยอดสลิปได้ ฿${fmt(transferOcrAmount)} ซึ่งไม่ตรงกับยอดที่ควรโอน` : `OCR อ่านยอดสลิปตรงกับยอดที่ควรโอน ฿${fmt(transferOcrAmount)}`}
+            </div>
+          )}
+          {transferOcrAmount === null && transferOcrNote && (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+              {transferOcrNote}
             </div>
           )}
         </div>

@@ -48,7 +48,7 @@ export default function ConfirmRedeem() {
       .from('redemptions')
       .select('id, pawn_id, redeem_date, interest_total, pawn_slip_url, transfer_slip_url')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (redeemData) {
       const redemptionRow = redeemData as RedemptionRow
@@ -58,7 +58,7 @@ export default function ConfirmRedeem() {
         .from('pawns')
         .select('id, ticket_no, amount')
         .eq('id', redemptionRow.pawn_id)
-        .single()
+        .maybeSingle()
 
       if (pawnData) setPawn(pawnData as PawnRow)
     }

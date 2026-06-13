@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { readSessionFromRequest } from '@/lib/server/app-session'
+import { hitRateLimit } from '@/lib/server/rate-limit'
 
 type StepLog = {
   name: string
@@ -6,10 +8,16 @@ type StepLog = {
   reason?: string
 }
 
+type OcrMode = 'ticket' | 'transfer'
+
 const MAX_BASE64_IMAGE_LENGTH = 12_000_000
 const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
 
-function makePrompt() {
+function getClientKey(request: NextRequest) {
+  return request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'local'
+}
+
+function makeTicketPrompt() {
   const today = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })
   return `อ่านข้อมูลจากรูปตั๋วจำนำทองนี้
 วันนี้คือ ${today}
@@ -21,12 +29,30 @@ function makePrompt() {
 
 ถ้าวันที่อ่านได้ชัด ให้ใส่ date_confidence = "clear"
 ถ้าวันที่อ่านไม่ชัด แต่พอใช้วันที่วันนี้ช่วยเดา "วันที่ที่น่าจะเป็น" ได้ ให้ใส่ date_confidence = "suggested"
-และใส่ pawn_date เป็นวันที่แนะนำ พร้อม date_note อธิบายสั้น ๆ ว่าเดาจากอะไร
+และใส่ pawn_date เป็นวันที่แนะนำ พร้อม date_note อธิบายสั้น ๆ
 ถ้าวันที่หาไม่ได้จริง ๆ ให้ใส่ date_confidence = "unknown" และ pawn_date = ""
 
 ถ้าในรูปมีทั้งใบเก่าและใบใหม่ ให้เน้นอ่าน "ใบใหม่"
-ตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น:
+ตอบเป็น JSON เท่านั้น:
 {"ticket_no":"","pawn_date":"YYYY-MM-DD","amount":0,"date_confidence":"clear|suggested|unknown","date_note":"","interest_amounts":[{"amount":0,"date":"YYYY-MM-DD"}],"notes":""}`
+}
+
+function makeTransferPrompt() {
+  return `อ่านข้อความจากสลิปโอนเงินนี้ แล้วตอบเป็น JSON เท่านั้น
+
+เป้าหมาย:
+- amount = ยอดเงินที่โอนจริงบนสลิป
+- transfer_date = วันที่บนสลิป ถ้าอ่านไม่ออกให้เป็น ""
+- transfer_time = เวลา ถ้าอ่านไม่ออกให้เป็น ""
+- receiver_name = ชื่อผู้รับ ถ้าอ่านได้
+- notes = ข้อสังเกตสั้น ๆ
+
+ตอบเป็น JSON เท่านั้น:
+{"amount":0,"transfer_date":"YYYY-MM-DD","transfer_time":"","receiver_name":"","notes":""}`
+}
+
+function makePrompt(mode: OcrMode) {
+  return mode === 'transfer' ? makeTransferPrompt() : makeTicketPrompt()
 }
 
 function validatePayload(base64: unknown, mimeType: unknown): { base64: string; mimeType: string } {
@@ -45,7 +71,7 @@ function validatePayload(base64: unknown, mimeType: unknown): { base64: string; 
   return { base64, mimeType }
 }
 
-async function callGemini(modelId: string, base64: string, mimeType: string): Promise<string> {
+async function callGemini(modelId: string, base64: string, mimeType: string, prompt: string): Promise<string> {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw Object.assign(new Error('Missing GEMINI_API_KEY'), { nokey: true })
 
@@ -58,7 +84,7 @@ async function callGemini(modelId: string, base64: string, mimeType: string): Pr
         contents: [{
           parts: [
             { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: makePrompt() },
+            { text: prompt },
           ],
         }],
         generationConfig: { maxOutputTokens: 400 },
@@ -78,7 +104,7 @@ async function callGemini(modelId: string, base64: string, mimeType: string): Pr
   return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
-async function callOpenRouter(modelId: string, base64: string, mimeType: string): Promise<string> {
+async function callOpenRouter(modelId: string, base64: string, mimeType: string, prompt: string): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY
   if (!key) throw Object.assign(new Error('Missing OPENROUTER_API_KEY'), { nokey: true })
 
@@ -97,7 +123,7 @@ async function callOpenRouter(modelId: string, base64: string, mimeType: string)
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-          { type: 'text', text: makePrompt() },
+          { type: 'text', text: prompt },
         ],
       }],
     }),
@@ -122,7 +148,18 @@ function parseJSON(text: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const user = readSessionFromRequest(req)
+  if (!user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const limiter = hitRateLimit(`ocr:${getClientKey(req)}`, 12, 10 * 60 * 1000)
+  if (!limiter.allowed) {
+    return NextResponse.json({ success: false, error: 'ลองใหม่อีกครั้งในภายหลัง' }, { status: 429 })
+  }
+
   const body = await req.json().catch(() => null)
+  const mode: OcrMode = body?.mode === 'transfer' ? 'transfer' : 'ticket'
 
   let payload: { base64: string; mimeType: string }
   try {
@@ -133,32 +170,33 @@ export async function POST(req: NextRequest) {
   }
 
   const { base64, mimeType } = payload
+  const prompt = makePrompt(mode)
   const log: StepLog[] = []
 
   const queue: Array<{ name: string; fn: () => Promise<string>; skipOnNoKey?: 'google' | 'or' }> = [
     {
       name: 'Gemini 2.5 Flash',
-      fn: () => callGemini('gemini-2.5-flash', base64, mimeType),
+      fn: () => callGemini('gemini-2.5-flash', base64, mimeType, prompt),
       skipOnNoKey: 'google',
     },
     {
       name: 'Gemini 2.5 Flash Lite',
-      fn: () => callGemini('gemini-2.5-flash-lite', base64, mimeType),
+      fn: () => callGemini('gemini-2.5-flash-lite', base64, mimeType, prompt),
       skipOnNoKey: 'google',
     },
     {
       name: 'Nemotron Nano 12B v2 VL',
-      fn: () => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', base64, mimeType),
+      fn: () => callOpenRouter('nvidia/nemotron-nano-12b-v2-vl:free', base64, mimeType, prompt),
       skipOnNoKey: 'or',
     },
     {
       name: 'Gemma 4 31B',
-      fn: () => callOpenRouter('google/gemma-4-31b-it:free', base64, mimeType),
+      fn: () => callOpenRouter('google/gemma-4-31b-it:free', base64, mimeType, prompt),
       skipOnNoKey: 'or',
     },
     {
       name: 'Gemini 2.5 Flash Lite (OpenRouter)',
-      fn: () => callOpenRouter('google/gemini-2.5-flash-lite', base64, mimeType),
+      fn: () => callOpenRouter('google/gemini-2.5-flash-lite', base64, mimeType, prompt),
       skipOnNoKey: 'or',
     },
   ]
@@ -178,7 +216,7 @@ export async function POST(req: NextRequest) {
       if (!text.trim()) throw new Error('Empty response')
 
       const parsed = parseJSON(text)
-      return NextResponse.json({ success: true, data: parsed, ai_used: item.name, steps: log })
+      return NextResponse.json({ success: true, data: parsed, ai_used: item.name, steps: log, mode })
     } catch (e) {
       const err = e as Error & { nokey?: boolean; isQuota?: boolean }
       if (err.nokey) {
@@ -197,8 +235,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(
     {
       success: false,
-      error: 'AI ไม่พร้อมใช้งาน กรอกข้อมูลเองได้เลย',
+      error: mode === 'transfer' ? 'AI อ่านสลิปไม่สำเร็จ ลองกรอกยอดเองได้เลย' : 'AI ไม่พร้อมใช้งาน กรอกข้อมูลเองได้เลย',
       steps: log,
+      mode,
     },
     { status: 500 },
   )

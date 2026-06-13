@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { hasOwnerPin, loginAgent, loginOwnerWithPassword, loginOwnerWithPin } from '@/lib/auth'
+import { fetchSession, hasOwnerPin, loginAgent, loginOwnerWithPassword, loginOwnerWithPin } from '@/lib/auth'
 
 export default function Login() {
   const router = useRouter()
@@ -14,8 +14,11 @@ export default function Login() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    void fetchSession().then((user) => {
+      if (user) router.replace('/')
+    })
     void loadOwnerMode()
-  }, [])
+  }, [router])
 
   async function loadOwnerMode() {
     const exists = await hasOwnerPin()

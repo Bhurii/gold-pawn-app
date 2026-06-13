@@ -49,7 +49,7 @@ function RedeemContent() {
 
   async function loadPawnById(pawnId: string) {
     setLoadingPawn(true)
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount').eq('id', pawnId).single()
+    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount').eq('id', pawnId).maybeSingle()
     if (data) {
       const pawn = data as PawnRow
       setSelected(pawn)

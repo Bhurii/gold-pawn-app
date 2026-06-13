@@ -82,7 +82,7 @@ export default function PawnDetail() {
       .from('pawns')
       .select('id, ticket_no, pawn_date, amount, status, tx_status, notes, pawn_slip_url, renewed_from_id, renewal_principal_paid')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (currentPawn) {
       const pawnRow = currentPawn as PawnDetailRow
@@ -93,7 +93,7 @@ export default function PawnDetail() {
           .from('pawns')
           .select('id, ticket_no, amount, pawn_date')
           .eq('id', pawnRow.renewed_from_id)
-          .single()
+          .maybeSingle()
         setRenewedFrom((prev as LinkPawn | null) || null)
       } else {
         setRenewedFrom(null)
@@ -103,7 +103,7 @@ export default function PawnDetail() {
         .from('pawns')
         .select('id, ticket_no, amount, renewal_principal_paid')
         .eq('renewed_from_id', pawnRow.id)
-        .single()
+        .maybeSingle()
       setRenewedTo((next as LinkPawn | null) || null)
     }
 
@@ -118,7 +118,7 @@ export default function PawnDetail() {
       .from('redemptions')
       .select('id, redeem_date, interest_total, pawn_slip_url, transfer_slip_url')
       .eq('pawn_id', id)
-      .single()
+      .maybeSingle()
     setRedemption((redemptionData as RedemptionRow | null) || null)
 
     const { data: transferData } = await supabase

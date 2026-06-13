@@ -54,7 +54,7 @@ export default function LoanDetail() {
       .from('loans')
       .select('id, borrower_name, principal, remaining_principal, interest_rate, notes, status')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     if (loanData) setLoan(loanData as LoanRow)
 
     const { data: txnData } = await supabase

@@ -1,8 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
-import { getSession } from '@/lib/auth'
+import { fetchSession, getSession, type AppUser } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
 import NotificationBell from '@/components/NotificationBell'
@@ -21,9 +20,21 @@ type PendingPawn = {
   tx_status: string
 }
 
+type DashboardPayload = {
+  budget: number
+  activePawns: number
+  activeAmount: number
+  activeLoans: number
+  loanAmount: number
+  monthInterest: number
+  pendingPawns: PendingPawn[]
+  pendingRedeems: PendingRedeem[]
+  user: AppUser
+}
+
 export default function Dashboard() {
   const router = useRouter()
-  const user = getSession()
+  const [user, setUser] = useState<AppUser | null>(() => getSession())
   const [budget, setBudget] = useState(0)
   const [activePawns, setActivePawns] = useState(0)
   const [activeAmount, setActiveAmount] = useState(0)
@@ -42,48 +53,25 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      const now = new Date()
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-      const [
-        { data: settings },
-        { data: pawns },
-        { data: pendingR },
-        { data: loans },
-        { data: interests },
-        { data: redemptions },
-        { data: loanTxns },
-      ] = await Promise.all([
-        supabase.from('settings').select('invest_budget').single(),
-        supabase.from('pawns').select('id, ticket_no, amount, tx_status').eq('status', 'active'),
-        supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount)').eq('status', 'pending_confirm'),
-        supabase.from('loans').select('id, remaining_principal').eq('status', 'active'),
-        supabase.from('interest_payments').select('amount').gte('payment_date', firstDay),
-        supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay),
-        supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay),
-      ])
+      const session = await fetchSession()
+      if (session) setUser(session)
 
-      if (settings) setBudget(settings.invest_budget)
-      if (pawns) {
-        const activeReadyPawns = pawns.filter((pawn) => pawn.tx_status === 'active')
-        setActivePawns(activeReadyPawns.length)
-        setActiveAmount(activeReadyPawns.reduce((sum, pawn) => sum + pawn.amount, 0))
-        setPendingPawns(pawns.filter((pawn) => pawn.tx_status === 'pending_transfer'))
+      const response = await fetch('/api/dashboard', { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลหน้าแรกไม่สำเร็จ')
       }
-      if (pendingR) {
-        setPendingRedeems(pendingR.map((redeem) => ({
-          ...redeem,
-          pawns: Array.isArray(redeem.pawns) ? redeem.pawns[0] ?? null : redeem.pawns,
-        })))
-      }
-      if (loans) {
-        setActiveLoans(loans.length)
-        setLoanAmount(loans.reduce((sum, loan) => sum + loan.remaining_principal, 0))
-      }
-      let totalInterest = 0
-      if (interests) totalInterest += interests.reduce((sum, interest) => sum + interest.amount, 0)
-      if (redemptions) totalInterest += redemptions.reduce((sum, redemption) => sum + (redemption.interest_last || 0), 0)
-      if (loanTxns) totalInterest += loanTxns.reduce((sum, txn) => sum + txn.amount, 0)
-      setMonthInterest(totalInterest)
+
+      const data = payload as DashboardPayload
+      setBudget(Number(data.budget || 0))
+      setActivePawns(Number(data.activePawns || 0))
+      setActiveAmount(Number(data.activeAmount || 0))
+      setActiveLoans(Number(data.activeLoans || 0))
+      setLoanAmount(Number(data.loanAmount || 0))
+      setMonthInterest(Number(data.monthInterest || 0))
+      setPendingPawns(data.pendingPawns || [])
+      setPendingRedeems(data.pendingRedeems || [])
+      setUser(data.user || session)
     } finally {
       setLoading(false)
     }
@@ -109,7 +97,7 @@ export default function Dashboard() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 32 }}>🐣</span>
-            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)', letterSpacing: -0.5 }}>ห่านทองคำ</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>ห่านทองคำ</div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
             สวัสดี {user?.role === 'owner' ? 'โทนี่' : 'เจ้หลุยส์'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
@@ -171,7 +159,6 @@ export default function Dashboard() {
             🔍 ค้นหา / ดูฝูงห่าน
           </button>
         </div>
-
       </div>
 
       <div className="section-label">สวนผลไม้</div>

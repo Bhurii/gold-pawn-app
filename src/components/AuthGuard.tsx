@@ -2,29 +2,49 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { AppUser, clearSession, getSession } from '@/lib/auth'
+import { AppUser, clearSession, fetchSession, getSession } from '@/lib/auth'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<AppUser | null>(() => getSession())
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const session = getSession()
-    setUser(session)
-    if (!session && pathname !== '/login') {
-      router.replace('/login')
+    let active = true
+
+    async function syncSession() {
+      if (pathname === '/login') {
+        if (active) setChecking(false)
+        return
+      }
+
+      setChecking(true)
+      const session = await fetchSession()
+      if (!active) return
+
+      setUser(session)
+      setChecking(false)
+      if (!session) {
+        router.replace('/login')
+      }
+    }
+
+    void syncSession()
+
+    return () => {
+      active = false
     }
   }, [pathname, router])
 
-  function handleLogout() {
-    clearSession()
+  async function handleLogout() {
+    await clearSession()
     setUser(null)
     router.replace('/login')
   }
 
   if (pathname === '/login') return <>{children}</>
-  if (!user) return null
+  if (checking || !user) return null
 
   return (
     <>

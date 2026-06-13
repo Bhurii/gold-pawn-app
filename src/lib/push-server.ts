@@ -1,6 +1,5 @@
 import { sign } from 'node:crypto'
-import { createClient } from '@supabase/supabase-js'
-import { requirePublicEnv } from '@/lib/env'
+import { createAdminClient } from '@/lib/server/admin'
 import { parseNotificationAction } from '@/lib/notification-meta'
 import { VAPID_PUBLIC_KEY } from '@/lib/push-config'
 import { VAPID_PRIVATE_KEY_PEM, VAPID_SUBJECT } from '@/lib/push-server-secret'
@@ -40,11 +39,7 @@ const INTERNAL_NOTIFICATION_TYPES = new Set([
 ])
 
 function supabaseServer() {
-  return createClient(
-    requirePublicEnv('NEXT_PUBLIC_SUPABASE_URL'),
-    requirePublicEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  )
+  return createAdminClient()
 }
 
 function toBase64Url(input: Buffer | string) {
@@ -303,7 +298,7 @@ export async function dispatchPushSignals() {
   }
 }
 
-export async function createPushTestNotification() {
+export async function createPushTestNotification(displayName = 'เครื่องนี้') {
   const supabase = supabaseServer()
   await supabase.from('notifications').insert({
     type: 'push_test',
