@@ -2,8 +2,15 @@ import { createAdminClient } from '@/lib/server/admin'
 import { hashPin, isHashedPin, verifyPin } from '@/lib/server/pin'
 
 const OWNER_PIN_TYPE = 'owner_pin_config'
+const AGENT_PIN_TYPE = 'agent_pin_config'
 
 type OwnerPinRecord = {
+  hash?: string
+  pin?: string
+  updatedAt: string
+}
+
+type AgentPinRecord = {
   hash?: string
   pin?: string
   updatedAt: string
@@ -19,6 +26,53 @@ async function readSettingsRow() {
     .maybeSingle()
 
   return data || null
+}
+
+async function loadPinRecord(type: string) {
+  const supabase = createAdminClient()
+  const { data } = await supabase
+    .from('notifications')
+    .select('id, message')
+    .eq('type', type)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!data?.message) return null
+
+  try {
+    return {
+      id: data.id,
+      record: JSON.parse(data.message) as { hash?: string; pin?: string; updatedAt: string },
+    }
+  } catch {
+    return null
+  }
+}
+
+async function savePinRecord(type: string, hash: string) {
+  const supabase = createAdminClient()
+  const payload = {
+    hash,
+    updatedAt: new Date().toISOString(),
+  }
+  const current = await loadPinRecord(type)
+
+  if (current?.id) {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ message: JSON.stringify(payload), is_read: true })
+      .eq('id', current.id)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await supabase.from('notifications').insert({
+    type,
+    message: JSON.stringify(payload),
+    is_read: true,
+  })
+  if (error) throw error
 }
 
 export async function ensureSettingsRow() {
@@ -37,11 +91,13 @@ export async function ensureSettingsRow() {
 }
 
 export async function loadSettingsState() {
-  const settings = await ensureSettingsRow()
+  const settings = await readSettingsRow()
+  const agentRecord = await loadPinRecord(AGENT_PIN_TYPE)
+
   return {
-    id: settings.id,
-    invest_budget: Number(settings.invest_budget || 0),
-    hasAgentPin: Boolean(settings.agent_pin_hash || settings.agent_pin),
+    id: settings?.id || '',
+    invest_budget: Number(settings?.invest_budget || 0),
+    hasAgentPin: Boolean(agentRecord?.record?.hash || agentRecord?.record?.pin || settings?.agent_pin_hash || settings?.agent_pin),
   }
 }
 
@@ -57,47 +113,48 @@ export async function saveBudget(investBudget: number) {
 }
 
 export async function saveAgentPin(pin: string) {
-  const supabase = createAdminClient()
-  const settings = await ensureSettingsRow()
   const pinHash = hashPin(pin)
 
-  const { error } = await supabase
-    .from('settings')
-    .update({
-      agent_pin: null,
-      agent_pin_hash: pinHash,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', settings.id)
+  await savePinRecord(AGENT_PIN_TYPE, pinHash)
 
-  if (error) throw error
+  try {
+    const supabase = createAdminClient()
+    const settings = await ensureSettingsRow()
+    const { error } = await supabase
+      .from('settings')
+      .update({
+        agent_pin: null,
+        agent_pin_hash: pinHash,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', settings.id)
+
+    if (error) {
+      console.warn('Failed to mirror agent PIN into settings:', error.message)
+    }
+  } catch (error) {
+    console.warn('Failed to mirror agent PIN into settings:', error)
+  }
 }
 
 export async function verifyAgentPin(pin: string) {
+  const record = await loadPinRecord(AGENT_PIN_TYPE)
+  const storedFromNotification = record?.record?.hash || record?.record?.pin
+  if (storedFromNotification) {
+    return verifyPin(storedFromNotification, pin)
+  }
+
   const settings = await readSettingsRow()
   if (!settings) return false
   return verifyPin(settings.agent_pin_hash || settings.agent_pin, pin)
 }
 
 async function loadOwnerPinRecord() {
-  const supabase = createAdminClient()
-  const { data } = await supabase
-    .from('notifications')
-    .select('id, message')
-    .eq('type', OWNER_PIN_TYPE)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (!data?.message) return null
-
-  try {
-    return {
-      id: data.id,
-      record: JSON.parse(data.message) as OwnerPinRecord,
-    }
-  } catch {
-    return null
+  const current = await loadPinRecord(OWNER_PIN_TYPE)
+  if (!current) return null
+  return {
+    id: current.id,
+    record: current.record as OwnerPinRecord,
   }
 }
 
@@ -107,28 +164,7 @@ export async function hasOwnerPinRecord() {
 }
 
 export async function saveOwnerPin(pin: string) {
-  const supabase = createAdminClient()
-  const payload: OwnerPinRecord = {
-    hash: hashPin(pin),
-    updatedAt: new Date().toISOString(),
-  }
-  const current = await loadOwnerPinRecord()
-
-  if (current?.id) {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ message: JSON.stringify(payload), is_read: true })
-      .eq('id', current.id)
-    if (error) throw error
-    return
-  }
-
-  const { error } = await supabase.from('notifications').insert({
-    type: OWNER_PIN_TYPE,
-    message: JSON.stringify(payload),
-    is_read: true,
-  })
-  if (error) throw error
+  await savePinRecord(OWNER_PIN_TYPE, hashPin(pin))
 }
 
 export async function verifyOwnerPin(pin: string) {
@@ -142,10 +178,12 @@ export async function maybeUpgradeLegacyPins() {
   const settings = await ensureSettingsRow()
 
   if (settings.agent_pin && !isHashedPin(settings.agent_pin_hash)) {
+    const pinHash = hashPin(settings.agent_pin)
+    await savePinRecord(AGENT_PIN_TYPE, pinHash)
     await supabase
       .from('settings')
       .update({
-        agent_pin_hash: hashPin(settings.agent_pin),
+        agent_pin_hash: pinHash,
         agent_pin: null,
         updated_at: new Date().toISOString(),
       })
@@ -164,5 +202,19 @@ export async function maybeUpgradeLegacyPins() {
         is_read: true,
       })
       .eq('id', owner.id)
+  }
+
+  const agent = await loadPinRecord(AGENT_PIN_TYPE)
+  if (agent?.id && agent.record.pin && !agent.record.hash) {
+    await supabase
+      .from('notifications')
+      .update({
+        message: JSON.stringify({
+          hash: hashPin(agent.record.pin),
+          updatedAt: new Date().toISOString(),
+        } satisfies AgentPinRecord),
+        is_read: true,
+      })
+      .eq('id', agent.id)
   }
 }
