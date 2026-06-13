@@ -9,15 +9,21 @@ type OwnerPinRecord = {
   updatedAt: string
 }
 
-export async function ensureSettingsRow() {
+async function readSettingsRow() {
   const supabase = createAdminClient()
-  const { data: existing } = await supabase
+  const { data } = await supabase
     .from('settings')
     .select('id, invest_budget, agent_pin, agent_pin_hash')
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
+  return data || null
+}
+
+export async function ensureSettingsRow() {
+  const supabase = createAdminClient()
+  const existing = await readSettingsRow()
   if (existing) return existing
 
   const { data, error } = await supabase
@@ -68,7 +74,8 @@ export async function saveAgentPin(pin: string) {
 }
 
 export async function verifyAgentPin(pin: string) {
-  const settings = await ensureSettingsRow()
+  const settings = await readSettingsRow()
+  if (!settings) return false
   return verifyPin(settings.agent_pin_hash || settings.agent_pin, pin)
 }
 

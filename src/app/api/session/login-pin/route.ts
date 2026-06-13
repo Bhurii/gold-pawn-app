@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { applySessionCookie, SessionUser, SessionUserRole } from '@/lib/server/app-session'
 import { hitRateLimit } from '@/lib/server/rate-limit'
-import { maybeUpgradeLegacyPins, verifyAgentPin, verifyOwnerPin } from '@/lib/server/settings-store'
+import { verifyAgentPin, verifyOwnerPin } from '@/lib/server/settings-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,8 +33,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง' }, { status: 400 })
     }
 
-    await maybeUpgradeLegacyPins()
-
     const valid = mode === 'owner' ? await verifyOwnerPin(pin) : await verifyAgentPin(pin)
     if (!valid) {
       return NextResponse.json({ error: mode === 'owner' ? 'PIN โทนี่ไม่ถูกต้อง' : 'PIN ไม่ถูกต้อง' }, { status: 401 })
@@ -46,7 +44,7 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Login failed',
+      error: error instanceof Error ? error.message : String(error),
     }, { status: 500 })
   }
 }

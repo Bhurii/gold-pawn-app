@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readSessionFromRequest } from '@/lib/server/app-session'
-import { hasOwnerPinRecord, loadSettingsState, maybeUpgradeLegacyPins, saveAgentPin, saveBudget, saveOwnerPin } from '@/lib/server/settings-store'
+import { hasOwnerPinRecord, loadSettingsState, saveAgentPin, saveBudget, saveOwnerPin } from '@/lib/server/settings-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
   const user = readSessionFromRequest(request)
   if (!user) return unauthorized()
 
-  await maybeUpgradeLegacyPins()
   const settings = await loadSettingsState()
   const hasOwnerPin = await hasOwnerPinRecord()
 
@@ -30,7 +29,6 @@ export async function PATCH(request: NextRequest) {
   const user = readSessionFromRequest(request)
   if (!user) return unauthorized()
 
-  await maybeUpgradeLegacyPins()
   const body = await request.json().catch(() => null)
   const updates: string[] = []
 
