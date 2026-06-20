@@ -31,7 +31,7 @@ export function parseNotificationAction(actionUrl?: string | null) {
 
   return {
     url: `${url.pathname}${url.search}${url.hash}` || '/',
-    recipients: recipients.length > 0 ? recipients : ['all'],
+    recipients: (recipients.length > 0 ? recipients : ['all']) as NotificationRecipient[],
   }
 }
 
