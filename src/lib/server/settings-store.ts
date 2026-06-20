@@ -18,25 +18,29 @@ type AgentPinRecord = {
 
 async function readSettingsRow() {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('settings')
     .select('id, invest_budget, agent_pin, agent_pin_hash')
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
+  if (error) throw error
+
   return data || null
 }
 
 async function loadPinRecord(type: string) {
   const supabase = createAdminClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('notifications')
     .select('id, message')
     .eq('type', type)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
+
+  if (error) throw error
 
   if (!data?.message) return null
 

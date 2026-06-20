@@ -40,22 +40,30 @@ function InterestContent() {
 
   async function loadPawns() {
     setLoadingPawns(true)
-    let query = supabase
-      .from('pawns')
-      .select('id, ticket_no, pawn_date, amount')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+    try {
+      const params = new URLSearchParams()
+      if (pawnIdFromUrl) {
+        params.set('id', pawnIdFromUrl)
+      } else {
+        params.set('filter', 'active')
+        params.set('tx_status', 'active')
+      }
 
-    if (pawnIdFromUrl) query = query.eq('id', pawnIdFromUrl)
+      const response = await fetch(`/api/pawns?${params.toString()}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+      }
 
-    const { data } = await query
-    if (data) {
-      const rows = data as PawnRow[]
+      const rows = (payload?.pawns || []) as PawnRow[]
       setPawns(rows)
       if (pawnIdFromUrl) setSelected(rows[0] || null)
+    } catch {
+      setPawns([])
+      if (pawnIdFromUrl) setSelected(null)
+    } finally {
+      setLoadingPawns(false)
     }
-
-    setLoadingPawns(false)
   }
 
   function handleFile(file: File | undefined) {

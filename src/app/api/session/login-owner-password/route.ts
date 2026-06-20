@@ -40,11 +40,15 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient()
 
-    const { data: roleRecord } = await admin
+    const { data: roleRecord, error: roleError } = await admin
       .from('user_roles')
       .select('role')
       .eq('user_id', data.user.id)
       .maybeSingle()
+
+    if (roleError) {
+      throw roleError
+    }
 
     if (!roleRecord || roleRecord.role !== 'owner') {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าใช้งาน' }, { status: 403 })

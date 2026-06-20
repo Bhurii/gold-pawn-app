@@ -50,29 +50,38 @@ function RedeemContent() {
 
   async function loadPawnById(pawnId: string) {
     setLoadingPawn(true)
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount').eq('id', pawnId).maybeSingle()
-    if (data) {
-      const pawn = data as PawnRow
-      setSelected(pawn)
-      await loadInterests(pawn.id)
-      setStep('upload')
+    try {
+      const response = await fetch(`/api/pawns?id=${encodeURIComponent(pawnId)}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (response.ok && payload?.pawns?.[0]) {
+        const pawn = payload.pawns[0] as PawnRow
+        setSelected(pawn)
+        await loadInterests(pawn.id)
+        setStep('upload')
+      }
+    } finally {
+      setLoadingPawn(false)
     }
-    setLoadingPawn(false)
   }
 
   async function loadActivePawns() {
-    const { data } = await supabase
-      .from('pawns')
-      .select('id, ticket_no, pawn_date, amount')
-      .eq('status', 'active')
-      .eq('tx_status', 'active')
-      .order('created_at', { ascending: false })
-    if (data) setPawns(data as PawnRow[])
+    try {
+      const response = await fetch('/api/pawns?filter=active&tx_status=active', { cache: 'no-store' })
+      const payload = await response.json()
+      if (response.ok) setPawns((payload?.pawns || []) as PawnRow[])
+    } catch {
+      setPawns([])
+    }
   }
 
   async function loadInterests(pawnId: string) {
-    const { data } = await supabase.from('interest_payments').select('amount').eq('pawn_id', pawnId)
-    if (data) setInterestPayments(data as InterestPayment[])
+    try {
+      const response = await fetch(`/api/interest-payments?pawn_id=${encodeURIComponent(pawnId)}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (response.ok) setInterestPayments((payload?.payments || []) as InterestPayment[])
+    } catch {
+      setInterestPayments([])
+    }
   }
 
   async function selectPawn(pawn: PawnRow) {

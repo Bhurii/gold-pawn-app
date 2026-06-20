@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import BottomNav from '@/components/BottomNav'
 
 type LoanRow = {
@@ -26,19 +25,22 @@ export default function LoanList() {
 
   async function loadLoans() {
     setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filter !== 'all') params.set('filter', filter)
 
-    let query = supabase
-      .from('loans')
-      .select('id, borrower_name, start_date, interest_rate, remaining_principal, status')
-      .order('created_at', { ascending: false })
+      const response = await fetch(`/api/loans${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลสินเชื่อไม่สำเร็จ')
+      }
 
-    if (filter !== 'all') {
-      query = query.eq('status', filter)
+      setLoans((payload?.loans || []) as LoanRow[])
+    } catch {
+      setLoans([])
+    } finally {
+      setLoading(false)
     }
-
-    const { data } = await query
-    setLoans((data || []) as LoanRow[])
-    setLoading(false)
   }
 
   const fmt = (value: number) => value.toLocaleString('th-TH')

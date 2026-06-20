@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { Pawn } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
 
@@ -65,53 +64,38 @@ export default function PawnList() {
 
   async function loadPawns() {
     setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filter !== 'all') params.set('filter', filter)
+      if (debouncedSearch) params.set('search', debouncedSearch)
 
-    let query = supabase
-      .from('pawns')
-      .select('id, ticket_no, pawn_date, amount, status, tx_status, renewed_from_id, renewal_principal_paid, created_at')
-      .order('created_at', { ascending: false })
+      const response = await fetch(`/api/pawns${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+      }
 
-    if (filter === 'pending_transfer') {
-      query = query.eq('tx_status', 'pending_transfer')
-    } else if (filter === 'pending_confirm') {
-      query = query.eq('tx_status', 'pending_redeem')
-    } else if (filter !== 'all') {
-      query = query.eq('status', filter)
-    }
+      const nextPawns = (payload?.pawns || []) as PawnRow[]
+      setPawns(nextPawns)
 
-    if (debouncedSearch) {
-      query = query.ilike('ticket_no', `%${debouncedSearch}%`)
-    }
-
-    const { data } = await query
-    const nextPawns = (data || []) as PawnRow[]
-    setPawns(nextPawns)
-
-    const renewedFromIds = nextPawns.map((pawn) => pawn.id)
-    if (renewedFromIds.length === 0) {
-      setAdjustedMap(new Map())
-      setLoading(false)
-      return
-    }
-
-    const { data: linked } = await supabase
-      .from('pawns')
-      .select('id, renewed_from_id, ticket_no, amount, renewal_principal_paid')
-      .in('renewed_from_id', renewedFromIds)
-
-    const nextAdjustedMap = new Map<string, AdjustedInfo>()
-    ;(linked || []).forEach((pawn) => {
-      if (!pawn.renewed_from_id) return
-      nextAdjustedMap.set(pawn.renewed_from_id, {
-        id: pawn.id,
-        ticket_no: pawn.ticket_no,
-        amount: pawn.amount,
-        type: Number(pawn.renewal_principal_paid) < 0 ? 'topup' : 'reduce',
+      const nextAdjustedMap = new Map<string, AdjustedInfo>()
+      ;((payload?.adjusted || []) as Array<AdjustedInfo & { renewed_from_id?: string | null; renewal_principal_paid?: number | null }>).forEach((pawn) => {
+        if (!pawn.renewed_from_id) return
+        nextAdjustedMap.set(pawn.renewed_from_id, {
+          id: pawn.id,
+          ticket_no: pawn.ticket_no,
+          amount: pawn.amount,
+          type: Number(pawn.renewal_principal_paid) < 0 ? 'topup' : 'reduce',
+        })
       })
-    })
 
-    setAdjustedMap(nextAdjustedMap)
-    setLoading(false)
+      setAdjustedMap(nextAdjustedMap)
+    } catch {
+      setPawns([])
+      setAdjustedMap(new Map())
+    } finally {
+      setLoading(false)
+    }
   }
 
   const specialFilterMeta = useMemo(() => {
