@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getNotificationFeed } from '@/lib/push-server'
+import { getNotificationFeed, getPendingActionFeed } from '@/lib/push-server'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 
 export const runtime = 'nodejs'
@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const feed = await getNotificationFeed(user.role, 12)
-  return NextResponse.json({ notifications: feed })
+  const [feed, pendingActions] = await Promise.all([
+    getNotificationFeed(user.role, 12),
+    getPendingActionFeed(user.role),
+  ])
+
+  return NextResponse.json({ notifications: feed, pendingActions })
 }

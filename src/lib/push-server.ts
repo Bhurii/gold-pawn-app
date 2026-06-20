@@ -22,6 +22,14 @@ export type NotificationFeedItem = {
   created_at: string
 }
 
+export type PendingActionItem = {
+  id: string
+  type: 'pending_transfer' | 'pending_redeem'
+  title: string
+  body: string
+  url: string
+}
+
 type PushSubscriptionRecord = {
   id: string
   message: string
@@ -268,6 +276,48 @@ export async function getNotificationFeed(role?: 'owner' | 'agent' | null, limit
       created_at: item.created_at,
     })),
   )
+}
+
+export async function getPendingActionFeed(role?: 'owner' | 'agent' | null) {
+  if (role !== 'owner') return []
+
+  const supabase = supabaseServer()
+  const [{ data: pendingPawns }, { data: pendingRedeems }] = await Promise.all([
+    supabase
+      .from('pawns')
+      .select('id, ticket_no, amount')
+      .eq('status', 'active')
+      .eq('tx_status', 'pending_transfer')
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('redemptions')
+      .select('id, pawn_id, pawns(ticket_no, amount)')
+      .eq('status', 'pending_confirm')
+      .order('created_at', { ascending: false })
+      .limit(10),
+  ])
+
+  const pawnItems: PendingActionItem[] = ((pendingPawns as Array<{ id: string; ticket_no: string; amount: number }> | null) || []).map((pawn) => ({
+    id: `pending_transfer_${pawn.id}`,
+    type: 'pending_transfer',
+    title: 'รายการค้าง: รอโอนเงิน',
+    body: `ตั๋ว #${pawn.ticket_no} ฿${Number(pawn.amount || 0).toLocaleString('th-TH')} รออัปสลิปหรือเคลียร์รายการ`,
+    url: `/pawns/${pawn.id}`,
+  }))
+
+  const redeemItems: PendingActionItem[] = (((pendingRedeems as Array<{ id: string; pawn_id: string; pawns?: { ticket_no?: string | null; amount?: number | null }[] | { ticket_no?: string | null; amount?: number | null } | null }> | null) || [])).map((redeem) => {
+    const pawnRow = Array.isArray(redeem.pawns) ? redeem.pawns[0] ?? null : redeem.pawns
+    return {
+      id: `pending_redeem_${redeem.id}`,
+      type: 'pending_redeem' as const,
+      title: 'รายการค้าง: รอยืนยันไถ่ถอน',
+      body: `ตั๋ว #${pawnRow?.ticket_no || '-'} รอตรวจและยืนยันการไถ่ถอน`,
+      url: `/redeem/confirm/${redeem.id}`,
+    }
+  })
+
+  return [...pawnItems, ...redeemItems]
 }
 
 export async function getLatestPushPayload(endpoint?: string | null) {

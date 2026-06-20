@@ -19,6 +19,14 @@ type NotificationItem = {
   created_at: string
 }
 
+type PendingActionItem = {
+  id: string
+  type: 'pending_transfer' | 'pending_redeem'
+  title: string
+  body: string
+  url: string
+}
+
 function relativeTime(value: string) {
   const diffMs = Date.now() - new Date(value).getTime()
   const diffMin = Math.max(1, Math.round(diffMs / 60000))
@@ -38,9 +46,10 @@ export default function NotificationBell() {
   const [pushMessage, setPushMessage] = useState('')
   const [iosInstallNeeded, setIosInstallNeeded] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
 
   const needsPushPrompt = pushState !== 'enabled'
-  const total = notifications.length
+  const total = notifications.length + pendingActions.length
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -69,6 +78,7 @@ export default function NotificationBell() {
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) return
       setNotifications(Array.isArray(payload.notifications) ? payload.notifications : [])
+      setPendingActions(Array.isArray(payload.pendingActions) ? payload.pendingActions : [])
     } catch {
       // best-effort
     }
@@ -166,7 +176,7 @@ export default function NotificationBell() {
           }}
         >
           <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 12px 8px', fontWeight: 700, letterSpacing: 0.5 }}>
-            การแจ้งเตือนล่าสุด
+            การแจ้งเตือนและงานค้าง
           </div>
 
           {needsPushPrompt && (
@@ -225,6 +235,49 @@ export default function NotificationBell() {
             </div>
           )}
 
+          {pendingActions.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, color: 'var(--gold)', padding: '4px 12px 8px', fontWeight: 700 }}>
+                รายการค้างที่ต้องทำ
+              </div>
+              {pendingActions.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    router.push(item.url || '/')
+                    setOpen(false)
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    cursor: 'pointer',
+                    background: 'rgba(242,201,76,0.08)',
+                    marginBottom: 6,
+                    border: '1px solid rgba(242,201,76,0.18)',
+                  }}
+                >
+                  <span style={{ fontSize: 18, lineHeight: 1.2, marginTop: 2, color: 'var(--gold-light)' }}>!</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>{item.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.45 }}>
+                      {item.body}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 16, color: 'var(--gold)', flexShrink: 0 }}>›</span>
+                </div>
+              ))}
+            </>
+          )}
+
+          {notifications.length > 0 && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 12px 8px', fontWeight: 700 }}>
+              แจ้งเตือนล่าสุด
+            </div>
+          )}
+
           {notifications.map((item) => (
             <div
               key={item.id}
@@ -260,7 +313,7 @@ export default function NotificationBell() {
 
           {total === 0 && (
             <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
-              ตอนนี้ยังไม่มีแจ้งเตือนล่าสุด
+              ตอนนี้ยังไม่มีแจ้งเตือนหรือรายการค้าง
             </div>
           )}
         </div>
