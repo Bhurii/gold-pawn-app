@@ -60,6 +60,7 @@ type TransferSlipRow = {
 export default function PawnDetail() {
   const router = useRouter()
   const { id } = useParams()
+  const pawnId = Array.isArray(id) ? id[0] : id
   const { showToast } = useToast()
   const user = getSession()
   const isOwner = user?.role === 'owner'
@@ -75,63 +76,36 @@ export default function PawnDetail() {
   const [uploadingDocKey, setUploadingDocKey] = useState('')
 
   useEffect(() => {
-    if (id) {
+    if (pawnId) {
       void loadData()
     }
-  }, [id])
+  }, [pawnId])
 
   async function loadData() {
-    const { data: currentPawn } = await supabase
-      .from('pawns')
-      .select('id, ticket_no, pawn_date, amount, status, tx_status, notes, pawn_slip_url, renewed_from_id, renewal_principal_paid, renewal_interest')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (currentPawn) {
-      const pawnRow = currentPawn as PawnDetailRow
-      setPawn(pawnRow)
-
-      if (pawnRow.renewed_from_id) {
-        const { data: prev } = await supabase
-          .from('pawns')
-          .select('id, ticket_no, amount, pawn_date')
-          .eq('id', pawnRow.renewed_from_id)
-          .maybeSingle()
-        setRenewedFrom((prev as LinkPawn | null) || null)
-      } else {
-        setRenewedFrom(null)
+    if (!pawnId) return
+    try {
+      const response = await fetch(`/api/pawns/${pawnId}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
       }
 
-      const { data: next } = await supabase
-        .from('pawns')
-        .select('id, ticket_no, amount, renewal_principal_paid')
-        .eq('renewed_from_id', pawnRow.id)
-        .maybeSingle()
-      setRenewedTo((next as LinkPawn | null) || null)
+      setPawn((payload?.pawn as PawnDetailRow | null) || null)
+      setRenewedFrom((payload?.renewedFrom as LinkPawn | null) || null)
+      setRenewedTo((payload?.renewedTo as LinkPawn | null) || null)
+      setInterests((payload?.interests as InterestRow[] | null) || [])
+      setRedemption((payload?.redemption as RedemptionRow | null) || null)
+      setTransferSlips((payload?.transferSlips as TransferSlipRow[] | null) || [])
+    } catch {
+      setPawn(null)
+      setRenewedFrom(null)
+      setRenewedTo(null)
+      setInterests([])
+      setRedemption(null)
+      setTransferSlips([])
+    } finally {
+      setLoading(false)
     }
-
-    const { data: interestData } = await supabase
-      .from('interest_payments')
-      .select('id, payment_date, amount, slip_url')
-      .eq('pawn_id', id)
-      .order('payment_date')
-    setInterests((interestData as InterestRow[] | null) || [])
-
-    const { data: redemptionData } = await supabase
-      .from('redemptions')
-      .select('id, redeem_date, interest_total, pawn_slip_url, transfer_slip_url')
-      .eq('pawn_id', id)
-      .maybeSingle()
-    setRedemption((redemptionData as RedemptionRow | null) || null)
-
-    const { data: transferData } = await supabase
-      .from('transfer_slips')
-      .select('id, direction, slip_url, amount, created_at')
-      .eq('pawn_id', id)
-      .order('created_at')
-    setTransferSlips((transferData as TransferSlipRow[] | null) || [])
-
-    setLoading(false)
   }
 
   function getExpectedTransferMeta() {
@@ -165,7 +139,7 @@ export default function PawnDetail() {
     setUploadingDocKey('pawn_ticket')
     try {
       const slipUrl = await uploadSlip(file, 'pawns')
-      await supabase.from('pawns').update({ pawn_slip_url: slipUrl }).eq('id', id)
+      await supabase.from('pawns').update({ pawn_slip_url: slipUrl }).eq('id', pawnId)
       await loadData()
       showToast({ tone: 'success', title: 'อัปรูปตั๋วแล้ว', message: `ตั๋ว #${pawn.ticket_no} ถูกบันทึกรูปเรียบร้อย` })
     } catch (error) {
@@ -213,20 +187,20 @@ export default function PawnDetail() {
       if (!transferMeta) return
       const slipUrl = await uploadSlip(file, 'transfer')
       await supabase.from('transfer_slips').insert({
-        pawn_id: id,
+        pawn_id: pawnId,
         direction: transferMeta.direction,
         slip_url: slipUrl,
         amount: transferMeta.amount,
         confirmed_at: new Date().toISOString(),
       })
       if (pawn.tx_status === 'pending_transfer') {
-        await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+        await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
       }
       await supabase.from('notifications').insert({
         type: 'transfer_confirmed',
         message: `อัปสลิปโอนเงินแล้ว ตั๋ว #${pawn.ticket_no} ฿${transferMeta.amount.toLocaleString('th-TH')}`,
-        pawn_id: String(id),
-        action_url: createNotificationAction(`/pawns/${id}`, ['owner']),
+        pawn_id: String(pawnId),
+        action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
       })
       await pingPushDispatch()
       await loadData()
@@ -243,12 +217,12 @@ export default function PawnDetail() {
     if (!pawn) return
 
     setUploadingPawnSlip(true)
-    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
     await supabase.from('notifications').insert({
       type: 'bypass_cash',
       message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
-      pawn_id: String(id),
-      action_url: createNotificationAction(`/pawns/${id}`, ['owner']),
+      pawn_id: String(pawnId),
+      action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
     })
     await pingPushDispatch()
     await loadData()
@@ -261,12 +235,12 @@ export default function PawnDetail() {
     if (!pawn) return
 
     setUploadingPawnSlip(true)
-    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
     await supabase.from('notifications').insert({
       type: 'bypass_prepaid',
       message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
-      pawn_id: String(id),
-      action_url: createNotificationAction(`/pawns/${id}`, ['owner']),
+      pawn_id: String(pawnId),
+      action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
     })
     await pingPushDispatch()
     await loadData()
@@ -433,10 +407,10 @@ export default function PawnDetail() {
 
       {pawn.status === 'active' && pawn.tx_status === 'active' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button onClick={() => router.push(`/interest?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>ตัดดอก</button>
-          <button onClick={() => router.push(`/renew?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>ลดต้น</button>
-          <button onClick={() => router.push(`/topup?pawn_id=${id}`)} className="btn-secondary" style={{ fontSize: 16 }}>เพิ่มยอด</button>
-          <button onClick={() => router.push(`/redeem?pawn_id=${id}`)} className="btn-primary" style={{ fontSize: 17 }}>ไถ่ถอน</button>
+          <button onClick={() => router.push(`/interest?pawn_id=${pawnId}`)} className="btn-secondary" style={{ fontSize: 16 }}>ตัดดอก</button>
+          <button onClick={() => router.push(`/renew?pawn_id=${pawnId}`)} className="btn-secondary" style={{ fontSize: 16 }}>ลดต้น</button>
+          <button onClick={() => router.push(`/topup?pawn_id=${pawnId}`)} className="btn-secondary" style={{ fontSize: 16 }}>เพิ่มยอด</button>
+          <button onClick={() => router.push(`/redeem?pawn_id=${pawnId}`)} className="btn-primary" style={{ fontSize: 17 }}>ไถ่ถอน</button>
         </div>
       )}
       <div style={{ height: 32 }} />

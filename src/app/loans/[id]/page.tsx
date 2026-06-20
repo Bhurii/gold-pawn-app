@@ -33,6 +33,7 @@ type LoanTxnRow = {
 export default function LoanDetail() {
   const router = useRouter()
   const { id } = useParams()
+  const loanId = Array.isArray(id) ? id[0] : id
   const { showToast } = useToast()
   const [loan, setLoan] = useState<LoanRow | null>(null)
   const [txns, setTxns] = useState<LoanTxnRow[]>([])
@@ -46,24 +47,26 @@ export default function LoanDetail() {
   const [form, setForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], note: '' })
 
   useEffect(() => {
-    if (id) void loadData()
-  }, [id])
+    if (loanId) void loadData()
+  }, [loanId])
 
   async function loadData() {
-    const { data: loanData } = await supabase
-      .from('loans')
-      .select('id, borrower_name, principal, remaining_principal, interest_rate, notes, status')
-      .eq('id', id)
-      .maybeSingle()
-    if (loanData) setLoan(loanData as LoanRow)
+    if (!loanId) return
+    try {
+      const response = await fetch(`/api/loans/${loanId}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลสินเชื่อไม่สำเร็จ')
+      }
 
-    const { data: txnData } = await supabase
-      .from('loan_transactions')
-      .select('id, type, amount, transaction_date, slip_url, note')
-      .eq('loan_id', id)
-      .order('transaction_date')
-    setTxns((txnData as LoanTxnRow[] | null) || [])
-    setLoading(false)
+      setLoan((payload?.loan as LoanRow | null) || null)
+      setTxns((payload?.txns as LoanTxnRow[] | null) || [])
+    } catch {
+      setLoan(null)
+      setTxns([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   function handleFile(file: File | undefined) {
@@ -95,7 +98,7 @@ export default function LoanDetail() {
       const transactionDate = requireDate(form.date, 'Transaction date')
 
       await supabase.from('loan_transactions').insert({
-        loan_id: id,
+        loan_id: loanId,
         type: txnType,
         amount,
         transaction_date: transactionDate,
@@ -105,9 +108,9 @@ export default function LoanDetail() {
 
       if (txnType === 'principal_payment') {
         const newRemaining = Math.max(0, loan.remaining_principal - amount)
-        await supabase.from('loans').update({ remaining_principal: newRemaining }).eq('id', id)
+        await supabase.from('loans').update({ remaining_principal: newRemaining }).eq('id', loanId)
       } else if (txnType === 'close') {
-        await supabase.from('loans').update({ remaining_principal: 0, status: 'closed' }).eq('id', id)
+        await supabase.from('loans').update({ remaining_principal: 0, status: 'closed' }).eq('id', loanId)
       }
 
       const notificationType =
@@ -127,7 +130,7 @@ export default function LoanDetail() {
       await supabase.from('notifications').insert({
         type: notificationType,
         message: notificationMessage,
-        action_url: createNotificationAction(`/loans/${id}`, ['owner']),
+        action_url: createNotificationAction(`/loans/${loanId}`, ['owner']),
       })
       await pingPushDispatch()
 
