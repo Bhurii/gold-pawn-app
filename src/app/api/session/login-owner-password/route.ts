@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requirePublicEnv } from '@/lib/env'
 import { applySessionCookie } from '@/lib/server/app-session'
+import { createAdminClient } from '@/lib/server/admin'
 import { hitRateLimit } from '@/lib/server/rate-limit'
 
 export const runtime = 'nodejs'
@@ -37,7 +38,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }, { status: 401 })
     }
 
-    const { data: roleRecord } = await supabase
+    const admin = createAdminClient()
+
+    const { data: roleRecord } = await admin
       .from('user_roles')
       .select('role')
       .eq('user_id', data.user.id)
