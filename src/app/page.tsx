@@ -104,7 +104,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <NotificationBell pendingPawns={pendingPawns} pendingRedeems={pendingRedeems} />
+          <NotificationBell />
           <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>
             ⚙️
           </button>

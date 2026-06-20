@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { pingPushDispatch } from '@/lib/push-client'
+import { createNotificationAction } from '@/lib/notification-meta'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { toThaiDateLong, fmt } from '@/lib/utils'
@@ -30,6 +31,7 @@ type PawnDetailRow = {
   pawn_slip_url: string | null
   renewed_from_id: string | null
   renewal_principal_paid: number | null
+  renewal_interest: number | null
 }
 
 type InterestRow = {
@@ -70,6 +72,7 @@ export default function PawnDetail() {
   const [loading, setLoading] = useState(true)
   const [viewImg, setViewImg] = useState('')
   const [uploadingPawnSlip, setUploadingPawnSlip] = useState(false)
+  const [uploadingDocKey, setUploadingDocKey] = useState('')
 
   useEffect(() => {
     if (id) {
@@ -80,7 +83,7 @@ export default function PawnDetail() {
   async function loadData() {
     const { data: currentPawn } = await supabase
       .from('pawns')
-      .select('id, ticket_no, pawn_date, amount, status, tx_status, notes, pawn_slip_url, renewed_from_id, renewal_principal_paid')
+      .select('id, ticket_no, pawn_date, amount, status, tx_status, notes, pawn_slip_url, renewed_from_id, renewal_principal_paid, renewal_interest')
       .eq('id', id)
       .maybeSingle()
 
@@ -131,23 +134,99 @@ export default function PawnDetail() {
     setLoading(false)
   }
 
+  function getExpectedTransferMeta() {
+    if (!pawn) return null
+
+    if (pawn.renewed_from_id) {
+      const principalChange = Number(pawn.renewal_principal_paid || 0)
+      const interest = Number(pawn.renewal_interest || 0)
+      if (principalChange < 0) {
+        return {
+          amount: Math.abs(principalChange),
+          direction: 'mom_to_me',
+        } as const
+      }
+
+      return {
+        amount: principalChange + interest,
+        direction: 'me_to_mom',
+      } as const
+    }
+
+    return {
+      amount: pawn.amount,
+      direction: 'me_to_mom',
+    } as const
+  }
+
+  async function uploadPawnTicketSlip(file: File) {
+    if (!pawn) return
+
+    setUploadingDocKey('pawn_ticket')
+    try {
+      const slipUrl = await uploadSlip(file, 'pawns')
+      await supabase.from('pawns').update({ pawn_slip_url: slipUrl }).eq('id', id)
+      await loadData()
+      showToast({ tone: 'success', title: 'อัปรูปตั๋วแล้ว', message: `ตั๋ว #${pawn.ticket_no} ถูกบันทึกรูปเรียบร้อย` })
+    } catch (error) {
+      showToast({ tone: 'error', title: 'อัปรูปไม่สำเร็จ', message: errorMessage(error) })
+    } finally {
+      setUploadingDocKey('')
+    }
+  }
+
+  async function uploadInterestSlip(interestId: string, file: File) {
+    setUploadingDocKey(`interest_${interestId}`)
+    try {
+      const slipUrl = await uploadSlip(file, 'interest')
+      await supabase.from('interest_payments').update({ slip_url: slipUrl }).eq('id', interestId)
+      await loadData()
+      showToast({ tone: 'success', title: 'อัปสลิปแล้ว', message: 'อัปสลิปตัดดอกย้อนหลังเรียบร้อย' })
+    } catch (error) {
+      showToast({ tone: 'error', title: 'อัปสลิปไม่สำเร็จ', message: errorMessage(error) })
+    } finally {
+      setUploadingDocKey('')
+    }
+  }
+
+  async function uploadRedemptionSlip(column: 'pawn_slip_url' | 'transfer_slip_url', folder: string, file: File) {
+    if (!redemption) return
+
+    setUploadingDocKey(`redemption_${column}`)
+    try {
+      const slipUrl = await uploadSlip(file, folder)
+      await supabase.from('redemptions').update({ [column]: slipUrl }).eq('id', redemption.id)
+      await loadData()
+      showToast({ tone: 'success', title: 'อัปหลักฐานแล้ว', message: 'เพิ่มหลักฐานการไถ่ถอนย้อนหลังเรียบร้อย' })
+    } catch (error) {
+      showToast({ tone: 'error', title: 'อัปหลักฐานไม่สำเร็จ', message: errorMessage(error) })
+    } finally {
+      setUploadingDocKey('')
+    }
+  }
+
   async function confirmTransfer(file: File) {
     if (!pawn) return
     setUploadingPawnSlip(true)
     try {
+      const transferMeta = getExpectedTransferMeta()
+      if (!transferMeta) return
       const slipUrl = await uploadSlip(file, 'transfer')
       await supabase.from('transfer_slips').insert({
         pawn_id: id,
-        direction: 'me_to_mom',
+        direction: transferMeta.direction,
         slip_url: slipUrl,
-        amount: pawn.amount,
+        amount: transferMeta.amount,
         confirmed_at: new Date().toISOString(),
       })
-      await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+      if (pawn.tx_status === 'pending_transfer') {
+        await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', id)
+      }
       await supabase.from('notifications').insert({
         type: 'transfer_confirmed',
-        message: `โอนเงินแล้ว! ตั๋ว #${pawn.ticket_no} ฿${pawn.amount.toLocaleString('th-TH')}`,
+        message: `อัปสลิปโอนเงินแล้ว ตั๋ว #${pawn.ticket_no} ฿${transferMeta.amount.toLocaleString('th-TH')}`,
         pawn_id: String(id),
+        action_url: createNotificationAction(`/pawns/${id}`, ['owner']),
       })
       await pingPushDispatch()
       await loadData()
@@ -169,6 +248,7 @@ export default function PawnDetail() {
       type: 'bypass_cash',
       message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(id),
+      action_url: createNotificationAction(`/pawns/${id}`, ['owner']),
     })
     await pingPushDispatch()
     await loadData()
@@ -186,11 +266,40 @@ export default function PawnDetail() {
       type: 'bypass_prepaid',
       message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(id),
+      action_url: createNotificationAction(`/pawns/${id}`, ['owner']),
     })
     await pingPushDispatch()
     await loadData()
     setUploadingPawnSlip(false)
     showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'บันทึกการฝากเงินล่วงหน้าเรียบร้อยแล้ว' })
+  }
+
+  function UploadActionRow({
+    label,
+    busy,
+    onSelect,
+  }: {
+    label: string
+    busy: boolean
+    onSelect: (file: File) => void
+  }) {
+    return (
+      <div style={{ padding: '12px 0', borderBottom: '0.5px solid var(--border)' }}>
+        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{label}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '12px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+            <input type="file" accept="image/*" capture="environment" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) onSelect(file) }} style={{ display: 'none' }} />
+            <span style={{ fontSize: 22 }}>📷</span>
+            <span style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 600 }}>{busy ? 'กำลังอัป...' : 'ถ่ายรูป'}</span>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '12px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
+            <input type="file" accept="image/*" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) onSelect(file) }} style={{ display: 'none' }} />
+            <span style={{ fontSize: 22 }}>🖼️</span>
+            <span style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 600 }}>เลือกจากคลัง</span>
+          </label>
+        </div>
+      </div>
+    )
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
@@ -201,6 +310,8 @@ export default function PawnDetail() {
   const headerBadgeClass = pawn.status === 'active' ? 'badge-active' : isAdjustedToNewTicket ? 'badge-pending' : 'badge-redeemed'
   const headerBadgeLabel = pawn.status === 'active' ? 'จำนำอยู่' : isAdjustedToNewTicket ? `${adjustedType} -> #${renewedTo?.ticket_no}` : 'ไถ่ถอนไปแล้ว'
   const cameFromTopup = Number(pawn.renewal_principal_paid) < 0
+  const shouldAllowTransferUpload = pawn.tx_status === 'pending_transfer' || (pawn.renewed_from_id && transferSlips.length === 0)
+  const missingInterestSlips = interests.filter((item) => !item.slip_url)
 
   return (
     <main className="page-container">
@@ -262,12 +373,63 @@ export default function PawnDetail() {
         interests={interests}
         redemption={redemption}
         onViewImg={setViewImg}
+        onUploadPawnSlip={uploadPawnTicketSlip}
         onConfirmTransfer={confirmTransfer}
         onBypassCash={handleBypassCash}
         onBypassPrepaid={handleBypassPrepaid}
         uploadingPawnSlip={uploadingPawnSlip}
         isOwner={isOwner}
       />
+
+      {(!pawn.pawn_slip_url || shouldAllowTransferUpload || missingInterestSlips.length > 0 || (redemption && (!redemption.pawn_slip_url || !redemption.transfer_slip_url))) && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>อัปหลักฐานย้อนหลัง</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+            ถ้าตอนบันทึกลืมอัปรูป สามารถกลับมาเพิ่มทีหลังได้จากตรงนี้
+          </div>
+
+          {!pawn.pawn_slip_url && (
+            <UploadActionRow
+              label="รูปตั๋วจำนำ"
+              busy={uploadingDocKey === 'pawn_ticket'}
+              onSelect={(file) => void uploadPawnTicketSlip(file)}
+            />
+          )}
+
+          {shouldAllowTransferUpload && (
+            <UploadActionRow
+              label="สลิปโอนเงินของรายการนี้"
+              busy={uploadingPawnSlip}
+              onSelect={(file) => void confirmTransfer(file)}
+            />
+          )}
+
+          {missingInterestSlips.map((item, index) => (
+            <UploadActionRow
+              key={item.id}
+              label={`สลิปตัดดอกครั้งที่ ${index + 1}`}
+              busy={uploadingDocKey === `interest_${item.id}`}
+              onSelect={(file) => void uploadInterestSlip(item.id, file)}
+            />
+          ))}
+
+          {redemption && !redemption.pawn_slip_url && (
+            <UploadActionRow
+              label="รูปตั๋วตอนไถ่ถอน"
+              busy={uploadingDocKey === 'redemption_pawn_slip_url'}
+              onSelect={(file) => void uploadRedemptionSlip('pawn_slip_url', 'redeem-pawn', file)}
+            />
+          )}
+
+          {redemption && !redemption.transfer_slip_url && (
+            <UploadActionRow
+              label="สลิปโอนคืนตอนไถ่ถอน"
+              busy={uploadingDocKey === 'redemption_transfer_slip_url'}
+              onSelect={(file) => void uploadRedemptionSlip('transfer_slip_url', 'redeem-transfer', file)}
+            />
+          )}
+        </div>
+      )}
 
       {pawn.status === 'active' && pawn.tx_status === 'active' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

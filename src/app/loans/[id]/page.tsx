@@ -145,6 +145,21 @@ export default function LoanDetail() {
     }
   }
 
+  async function uploadTxnSlip(txnId: string, file: File) {
+    setSaving(true)
+    try {
+      assertImageFile(file)
+      const slipUrl = await uploadSlip(file, 'loans')
+      await supabase.from('loan_transactions').update({ slip_url: slipUrl }).eq('id', txnId)
+      await loadData()
+      showToast({ tone: 'success', title: 'อัปสลิปแล้ว', message: 'เพิ่มหลักฐานย้อนหลังเรียบร้อย' })
+    } catch (error) {
+      showToast({ tone: 'error', title: 'อัปสลิปไม่สำเร็จ', message: errorMessage(error) })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
   if (!loan) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูล</div>
 
@@ -284,6 +299,20 @@ export default function LoanDetail() {
                   <div style={{ fontSize: 15, fontWeight: 600 }}>{txnTypeLabel[txn.type] || txn.type}</div>
                   <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{new Date(txn.transaction_date).toLocaleDateString('th-TH')}</div>
                   {txn.note && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{txn.note}</div>}
+                  {!txn.slip_url && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+                      <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: '1.5px dashed var(--border-hover)', borderRadius: 10, padding: '10px', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                        <input type="file" accept="image/*" capture="environment" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadTxnSlip(txn.id, file) }} style={{ display: 'none' }} />
+                        <span style={{ fontSize: 18 }}>📷</span>
+                        <span style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>อัปสลิป</span>
+                      </label>
+                      <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: '1.5px dashed var(--border-hover)', borderRadius: 10, padding: '10px', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                        <input type="file" accept="image/*" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadTxnSlip(txn.id, file) }} style={{ display: 'none' }} />
+                        <span style={{ fontSize: 18 }}>🖼️</span>
+                        <span style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>จากคลัง</span>
+                      </label>
+                    </div>
+                  )}
                 </div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: txnTypeColor[txn.type] || 'var(--gold)', flexShrink: 0 }}>
                   {txn.type === 'principal' ? '-' : '+'}฿{fmtMoney(txn.amount)}

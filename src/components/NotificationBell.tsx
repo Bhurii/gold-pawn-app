@@ -10,12 +10,26 @@ import {
   type PushState,
 } from '@/lib/push-client'
 
-interface Props {
-  pendingPawns: any[]
-  pendingRedeems: any[]
+type NotificationItem = {
+  id: string
+  type: string
+  title: string
+  body: string
+  url: string
+  created_at: string
 }
 
-export default function NotificationBell({ pendingPawns, pendingRedeems }: Props) {
+function relativeTime(value: string) {
+  const diffMs = Date.now() - new Date(value).getTime()
+  const diffMin = Math.max(1, Math.round(diffMs / 60000))
+  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`
+  const diffHour = Math.round(diffMin / 60)
+  if (diffHour < 24) return `${diffHour} ชม. ที่แล้ว`
+  const diffDay = Math.round(diffHour / 24)
+  return `${diffDay} วันที่แล้ว`
+}
+
+export default function NotificationBell() {
   const router = useRouter()
   const ref = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
@@ -23,9 +37,10 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
   const [pushBusy, setPushBusy] = useState(false)
   const [pushMessage, setPushMessage] = useState('')
   const [iosInstallNeeded, setIosInstallNeeded] = useState(false)
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
 
-  const total = pendingPawns.length + pendingRedeems.length
   const needsPushPrompt = pushState !== 'enabled'
+  const total = notifications.length
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -39,7 +54,25 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
   useEffect(() => {
     void resolvePushState().then(setPushState)
     setIosInstallNeeded(isIosDevice() && !isStandaloneMode())
+    void loadNotifications()
   }, [])
+
+  useEffect(() => {
+    if (open) {
+      void loadNotifications()
+    }
+  }, [open])
+
+  async function loadNotifications() {
+    try {
+      const response = await fetch('/api/notifications/recent', { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) return
+      setNotifications(Array.isArray(payload.notifications) ? payload.notifications : [])
+    } catch {
+      // best-effort
+    }
+  }
 
   async function handleEnablePush() {
     setPushBusy(true)
@@ -127,13 +160,13 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
             border: '1px solid var(--border)',
             borderRadius: 18,
             padding: 8,
-            minWidth: 300,
+            minWidth: 320,
             zIndex: 100,
             boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
           }}
         >
           <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 12px 8px', fontWeight: 700, letterSpacing: 0.5 }}>
-            การแจ้งเตือน
+            การแจ้งเตือนล่าสุด
           </div>
 
           {needsPushPrompt && (
@@ -150,7 +183,7 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-light)' }}>เปิดแจ้งเตือนบนเครื่องนี้</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.45 }}>
-                    เด้งได้แม้ไม่ได้เปิดแอป เหมือนแอปมือถือที่ปักหน้าจอไว้
+                    เวลาเกิดรายการใหม่ แอปจะบอกว่าเกิดอะไรขึ้นและกดเข้าไปยังรายการนั้นได้เลย
                   </div>
                 </div>
                 <span className="badge-pending">ยังไม่เปิด</span>
@@ -192,68 +225,42 @@ export default function NotificationBell({ pendingPawns, pendingRedeems }: Props
             </div>
           )}
 
-          {pendingPawns.map((pawn) => (
+          {notifications.map((item) => (
             <div
-              key={pawn.id}
+              key={item.id}
               onClick={() => {
-                router.push(`/pawns/${pawn.id}`)
+                router.push(item.url || '/')
                 setOpen(false)
               }}
               style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-start',
                 gap: 10,
                 padding: '10px 12px',
                 borderRadius: 12,
                 cursor: 'pointer',
-                background: 'rgba(242,201,76,0.08)',
+                background: 'rgba(242,201,76,0.05)',
                 marginBottom: 6,
+                border: '1px solid rgba(242,201,76,0.12)',
               }}
             >
-              <span style={{ fontSize: 22, flexShrink: 0 }}>🪿</span>
+              <span style={{ fontSize: 18, lineHeight: 1.2, marginTop: 2, color: 'var(--gold)' }}>•</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold)' }}>มีรายการรับจำนำใหม่</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  ตั๋ว #{pawn.ticket_no} · ฿{pawn.amount?.toLocaleString('th-TH')} · โอนตังเลย
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-light)' }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.45 }}>
+                  {item.body}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 5 }}>
+                  {relativeTime(item.created_at)}
                 </div>
               </div>
               <span style={{ fontSize: 16, color: 'var(--gold)', flexShrink: 0 }}>›</span>
             </div>
           ))}
 
-          {pendingRedeems.map((redeem) => (
-            <div
-              key={redeem.id}
-              onClick={() => {
-                router.push(`/redeem/confirm/${redeem.id}`)
-                setOpen(false)
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px',
-                borderRadius: 12,
-                cursor: 'pointer',
-                background: 'rgba(242,201,76,0.06)',
-                marginBottom: 6,
-                border: '1px solid rgba(242,201,76,0.16)',
-              }}
-            >
-              <span style={{ fontSize: 22, flexShrink: 0 }}>🐣</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gold-light)' }}>มีรายการไถ่ถอน</div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  ตั๋ว #{redeem.pawns?.ticket_no} · รอยืนยัน
-                </div>
-              </div>
-              <span style={{ fontSize: 16, color: 'var(--gold-light)', flexShrink: 0 }}>›</span>
-            </div>
-          ))}
-
           {total === 0 && (
             <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.5 }}>
-              ตอนนี้ยังไม่มีรายการค้างใหม่ เดี๋ยวถ้ามีงานเข้า กระดิ่งนี้จะรวมไว้ให้ทั้งการแจ้งเตือนและรายการที่ต้องทำต่อ
+              ตอนนี้ยังไม่มีแจ้งเตือนล่าสุด
             </div>
           )}
         </div>

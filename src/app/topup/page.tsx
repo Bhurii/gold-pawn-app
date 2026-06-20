@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { uploadSlip } from '@/lib/slip-storage'
@@ -230,6 +231,7 @@ function TopupContent() {
         type: 'topup',
         message: `เพิ่มยอดตั๋ว #${pawn.ticket_no} -> ตั๋วใหม่ #${form.new_ticket_no} ยอด ฿${fmt(newAmount)} รอโอนเงิน ฿${fmt(topupAmount)}`,
         pawn_id: newPawn.id,
+        action_url: createNotificationAction(`/pawns/${newPawn.id}`, ['owner']),
       })
       await pingPushDispatch()
 

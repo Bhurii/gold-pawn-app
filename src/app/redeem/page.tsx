@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import { uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -99,7 +100,7 @@ function RedeemContent() {
       const interestPaid = interestPayments.reduce((sum, item) => sum + item.amount, 0)
       const interestTotal = interestPaid + interestLast
 
-      const { error } = await supabase.from('redemptions').insert({
+      const { data: redemption, error } = await supabase.from('redemptions').insert({
         pawn_id: selected.id,
         redeem_date: redeemDate,
         interest_last: interestLast,
@@ -108,7 +109,7 @@ function RedeemContent() {
         pawn_slip_url: pawnSlipUrl,
         transfer_slip_url: transferSlipUrl,
         status: 'pending_confirm',
-      })
+      }).select('id').single()
       if (error) throw error
 
       await supabase.from('pawns').update({ tx_status: 'pending_redeem' }).eq('id', selected.id)
@@ -116,6 +117,7 @@ function RedeemContent() {
         type: 'redeem_pending',
         message: `มีรายการไถ่ถอน ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอยืนยัน`,
         pawn_id: selected.id,
+        action_url: createNotificationAction(`/redeem/confirm/${redemption.id}`, ['owner']),
       })
       await pingPushDispatch()
 

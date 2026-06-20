@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
 import { getSession } from '@/lib/auth'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -75,6 +76,7 @@ export default function ConfirmRedeem() {
         type: 'redeem_confirmed',
         message: `ยืนยันไถ่ถอนแล้ว ตั๋ว #${pawn?.ticket_no}`,
         pawn_id: redemption.pawn_id,
+        action_url: createNotificationAction(`/pawns/${redemption.pawn_id}`, ['owner', 'agent']),
       })
       await pingPushDispatch()
       showToast({ tone: 'success', title: 'ยืนยันสำเร็จ', message: 'ไถ่ถอนเรียบร้อยแล้ว' })

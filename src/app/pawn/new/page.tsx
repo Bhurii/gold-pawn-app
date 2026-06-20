@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
+import { createNotificationAction } from '@/lib/notification-meta'
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -143,6 +144,7 @@ export default function NewPawn() {
         type: 'pawn_created',
         message: `มีรายการรับจำนำใหม่ ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} รอโอนเงิน`,
         pawn_id: pawn.id,
+        action_url: createNotificationAction(`/pawns/${pawn.id}`, ['owner']),
       })
       await pingPushDispatch()
 

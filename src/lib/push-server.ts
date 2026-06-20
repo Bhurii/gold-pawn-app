@@ -1,7 +1,7 @@
 import { sign } from 'node:crypto'
-import { createAdminClient } from '@/lib/server/admin'
-import { parseNotificationAction } from '@/lib/notification-meta'
+import { canReceiveNotification, parseNotificationAction } from '@/lib/notification-meta'
 import { VAPID_PUBLIC_KEY } from '@/lib/push-config'
+import { createAdminClient } from '@/lib/server/admin'
 import { VAPID_PRIVATE_KEY_PEM, VAPID_SUBJECT } from '@/lib/push-server-secret'
 
 type NotificationRow = {
@@ -10,6 +10,15 @@ type NotificationRow = {
   message: string
   pawn_id?: string | null
   action_url?: string | null
+  created_at: string
+}
+
+export type NotificationFeedItem = {
+  id: string
+  type: string
+  title: string
+  body: string
+  url: string
   created_at: string
 }
 
@@ -34,6 +43,7 @@ type StoredSubscription = {
 
 const INTERNAL_NOTIFICATION_TYPES = new Set([
   'push_subscription',
+  'agent_pin_config',
   'owner_pin_config',
   'push_test_marker',
 ])
@@ -74,6 +84,7 @@ function buildJwt(aud: string) {
   if (!VAPID_PRIVATE_KEY_PEM) {
     throw new Error('Push private key is not configured')
   }
+
   const header = toBase64Url(JSON.stringify({ typ: 'JWT', alg: 'ES256' }))
   const claims = toBase64Url(JSON.stringify({
     aud,
@@ -193,16 +204,16 @@ function canRoleReceiveType(type: string, role?: 'owner' | 'agent' | null) {
 }
 
 function getNotificationTitle(type: string) {
-  if (type === 'pawn_created') return 'มีตั๋วรอโอนเงิน'
+  if (type === 'pawn_created') return 'มีการรับจำนำใหม่'
   if (type === 'redeem_pending') return 'มีรายการรอยืนยันไถ่ถอน'
   if (type === 'redeem_confirmed') return 'ยืนยันไถ่ถอนแล้ว'
   if (type === 'renewed') return 'ลดต้นสำเร็จ'
   if (type === 'topup') return 'เพิ่มยอดสำเร็จ'
   if (type === 'push_test') return 'ทดสอบแจ้งเตือน'
-  if (type === 'transfer_confirmed') return 'ยืนยันโอนเงินแล้ว'
+  if (type === 'transfer_confirmed') return 'อัปสลิปโอนเงินแล้ว'
   if (type === 'interest_paid') return 'มีการตัดดอก'
-  if (type === 'bypass_cash') return 'เคลียร์เงินสดแล้ว'
-  if (type === 'bypass_prepaid') return 'ฝากเงินล่วงหน้าแล้ว'
+  if (type === 'bypass_cash') return 'เคลียร์ด้วยเงินสดแล้ว'
+  if (type === 'bypass_prepaid') return 'บันทึกฝากเงินล่วงหน้าแล้ว'
   if (type === 'loan_created') return 'มีรายการปล่อยกู้ใหม่'
   if (type === 'loan_interest_paid') return 'มีการรับดอกสินเชื่อ'
   if (type === 'loan_principal_paid') return 'มีการตัดต้นสินเชื่อ'
@@ -211,19 +222,58 @@ function getNotificationTitle(type: string) {
   return 'ห่านทองคำ'
 }
 
-export async function getLatestPushPayload(endpoint?: string | null) {
+async function resolveNotificationUrl(supabase: ReturnType<typeof createAdminClient>, notification: NotificationRow) {
+  const meta = parseNotificationAction(notification.action_url)
+  if (meta.url && meta.url !== '/') return meta.url
+
+  if (notification.type === 'redeem_pending' && notification.pawn_id) {
+    const { data: redeem } = await supabase
+      .from('redemptions')
+      .select('id')
+      .eq('pawn_id', notification.pawn_id)
+      .eq('status', 'pending_confirm')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (redeem?.id) return `/redeem/confirm/${redeem.id}`
+  }
+
+  if (notification.pawn_id) return `/pawns/${notification.pawn_id}`
+  return '/'
+}
+
+export async function getNotificationFeed(role?: 'owner' | 'agent' | null, limit = 12) {
   const supabase = supabaseServer()
-  const role = await getSubscriptionRole(endpoint)
   const { data } = await supabase
     .from('notifications')
     .select('id,type,message,pawn_id,action_url,created_at')
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(60)
 
-  const latest = (data as NotificationRow[] | null)?.find((item) => {
+  const rows = ((data as NotificationRow[] | null) || []).filter((item) => {
     if (INTERNAL_NOTIFICATION_TYPES.has(item.type)) return false
-    return canRoleReceiveType(item.type, role)
+    if (!canRoleReceiveType(item.type, role)) return false
+    const meta = parseNotificationAction(item.action_url)
+    return canReceiveNotification(meta.recipients, role)
   })
+
+  return Promise.all(
+    rows.slice(0, limit).map(async (item) => ({
+      id: item.id,
+      type: item.type,
+      title: getNotificationTitle(item.type),
+      body: item.message,
+      url: await resolveNotificationUrl(supabase, item),
+      created_at: item.created_at,
+    })),
+  )
+}
+
+export async function getLatestPushPayload(endpoint?: string | null) {
+  const role = await getSubscriptionRole(endpoint)
+  const feed = await getNotificationFeed(role, 20)
+  const latest = feed[0]
 
   if (!latest) {
     return {
@@ -234,26 +284,10 @@ export async function getLatestPushPayload(endpoint?: string | null) {
     }
   }
 
-  const meta = parseNotificationAction(latest.action_url)
-  let url = meta.url || (latest.pawn_id ? `/pawns/${latest.pawn_id}` : '/')
-  const title = getNotificationTitle(latest.type)
-
-  if (latest.type === 'redeem_pending' && latest.pawn_id) {
-    const { data: redeem } = await supabase
-      .from('redemptions')
-      .select('id')
-      .eq('pawn_id', latest.pawn_id)
-      .eq('status', 'pending_confirm')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (redeem?.id) url = `/redeem/confirm/${redeem.id}`
-  }
-
   return {
-    title,
-    body: latest.message,
-    url,
+    title: latest.title,
+    body: latest.body,
+    url: latest.url,
     tag: `haanthong-${latest.type}`,
   }
 }
@@ -298,11 +332,11 @@ export async function dispatchPushSignals() {
   }
 }
 
-export async function createPushTestNotification(displayName = 'เครื่องนี้') {
+export async function createPushTestNotification(_displayName = 'เครื่องนี้') {
   const supabase = supabaseServer()
   await supabase.from('notifications').insert({
     type: 'push_test',
-    message: 'นี่คือแจ้งเตือนทดสอบจากห่านทองคำ เปิดได้แล้วเด้งเหมือนแอปจริง',
+    message: 'นี่คือการแจ้งเตือนทดสอบจากห่านทองคำ เปิดได้แล้วเด้งเหมือนแอปจริง',
     is_read: false,
   })
 }
