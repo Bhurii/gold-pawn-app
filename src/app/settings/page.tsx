@@ -15,6 +15,12 @@ type SettingsPayload = {
   hasAgentPin: boolean
 }
 
+type SettingsCache = {
+  user: AppUser | null
+  settings: SettingsPayload | null
+  budget: string
+}
+
 export default function Settings() {
   const router = useRouter()
   const { showToast } = useToast()
@@ -45,6 +51,7 @@ export default function Settings() {
         return
       }
 
+      hydrateFromCache()
       setUser(session)
       await loadSettings()
     }
@@ -56,8 +63,24 @@ export default function Settings() {
     }
   }, [router])
 
+  function hydrateFromCache() {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem('settings:app')
+      if (!raw) return
+      const cached = JSON.parse(raw) as SettingsCache
+      setUser(cached.user || getSession())
+      setSettings(cached.settings || null)
+      setBudget(cached.budget || '')
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
+    }
+  }
+
   async function loadSettings() {
-    setLoading(true)
+    setLoading((current) => (settings ? current : true))
     try {
       const response = await fetch('/api/settings/app', { cache: 'no-store' })
       const payload = await response.json()
@@ -68,6 +91,13 @@ export default function Settings() {
       const nextSettings = payload as SettingsPayload
       setSettings(nextSettings)
       setBudget(nextSettings.budget?.toString() || '')
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('settings:app', JSON.stringify({
+          user: getSession(),
+          settings: nextSettings,
+          budget: nextSettings.budget?.toString() || '',
+        } satisfies SettingsCache))
+      }
     } catch (error) {
       showToast({ tone: 'error', title: 'โหลดข้อมูลไม่สำเร็จ', message: error instanceof Error ? error.message : 'ลองเข้าใหม่อีกครั้ง' })
     } finally {

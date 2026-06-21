@@ -28,6 +28,8 @@ type ReportPayload = {
   loanDetails: LoanDetail[]
 }
 
+type ReportCache = ReportPayload
+
 type SelectedPeriod = number | 'all'
 
 function getMonthIndex(dateStr: string) {
@@ -51,20 +53,42 @@ export default function Report() {
   }, [currentYear])
 
   useEffect(() => {
+    hydrateFromCache(selectedYear)
     void loadYearData(selectedYear)
   }, [selectedYear])
 
   async function loadYearData(year: number) {
-    setLoading(true)
+    setLoading((current) => (report ? current : true))
     try {
       const response = await fetch(`/api/report-summary?year=${year}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload?.error || 'โหลดข้อมูลรายงานไม่สำเร็จ')
       }
-      setReport(payload as ReportPayload)
+      const nextReport = payload as ReportPayload
+      setReport(nextReport)
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(getCacheKey(year), JSON.stringify(nextReport))
+      }
     } finally {
       setLoading(false)
+    }
+  }
+
+  function getCacheKey(year: number) {
+    return `report:${year}`
+  }
+
+  function hydrateFromCache(year: number) {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem(getCacheKey(year))
+      if (!raw) return
+      setReport(JSON.parse(raw) as ReportCache)
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
     }
   }
 

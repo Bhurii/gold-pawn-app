@@ -19,6 +19,11 @@ type AdjustedInfo = {
 
 type PawnFilter = 'all' | 'active' | 'redeemed' | 'pending_transfer' | 'pending_confirm'
 
+type PawnListCache = {
+  pawns: PawnRow[]
+  adjusted: Array<AdjustedInfo & { renewed_from_id?: string | null; renewal_principal_paid?: number | null }>
+}
+
 const VALID_FILTERS: PawnFilter[] = ['all', 'active', 'redeemed', 'pending_transfer', 'pending_confirm']
 
 function normalizeFilter(value: string | null): PawnFilter {
@@ -60,6 +65,7 @@ export default function PawnList() {
   }, [debouncedSearch, filter, router, searchParams])
 
   useEffect(() => {
+    hydrateFromCache(filter, debouncedSearch)
     void loadPawns()
   }, [filter, debouncedSearch])
 
@@ -74,7 +80,7 @@ export default function PawnList() {
   }, [pawns, router])
 
   async function loadPawns() {
-    setLoading(true)
+    setLoading((current) => (pawns.length === 0 ? true : current))
     try {
       const params = new URLSearchParams()
       if (filter !== 'all') params.set('filter', filter)
@@ -89,8 +95,9 @@ export default function PawnList() {
       const nextPawns = (payload?.pawns || []) as PawnRow[]
       setPawns(nextPawns)
 
+      const adjustedRows = ((payload?.adjusted || []) as Array<AdjustedInfo & { renewed_from_id?: string | null; renewal_principal_paid?: number | null }>)
       const nextAdjustedMap = new Map<string, AdjustedInfo>()
-      ;((payload?.adjusted || []) as Array<AdjustedInfo & { renewed_from_id?: string | null; renewal_principal_paid?: number | null }>).forEach((pawn) => {
+      adjustedRows.forEach((pawn) => {
         if (!pawn.renewed_from_id) return
         nextAdjustedMap.set(pawn.renewed_from_id, {
           id: pawn.id,
@@ -101,6 +108,9 @@ export default function PawnList() {
       })
 
       setAdjustedMap(nextAdjustedMap)
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(getCacheKey(filter, debouncedSearch), JSON.stringify({ pawns: nextPawns, adjusted: adjustedRows } satisfies PawnListCache))
+      }
     } catch {
       setPawns([])
       setAdjustedMap(new Map())
@@ -133,6 +143,36 @@ export default function PawnList() {
 
   function clearSpecialFilter() {
     setFilter('all')
+  }
+
+  function getCacheKey(nextFilter: PawnFilter, nextSearch: string) {
+    return `pawn-list:${nextFilter}:${nextSearch || '__empty__'}`
+  }
+
+  function hydrateFromCache(nextFilter: PawnFilter, nextSearch: string) {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem(getCacheKey(nextFilter, nextSearch))
+      if (!raw) return
+      const cached = JSON.parse(raw) as PawnListCache
+      setPawns(cached.pawns || [])
+
+      const nextAdjustedMap = new Map<string, AdjustedInfo>()
+      ;(cached.adjusted || []).forEach((pawn) => {
+        if (!pawn.renewed_from_id) return
+        nextAdjustedMap.set(pawn.renewed_from_id, {
+          id: pawn.id,
+          ticket_no: pawn.ticket_no,
+          amount: pawn.amount,
+          type: Number(pawn.renewal_principal_paid) < 0 ? 'topup' : 'reduce',
+        })
+      })
+      setAdjustedMap(nextAdjustedMap)
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
+    }
   }
 
   return (
@@ -191,7 +231,7 @@ export default function PawnList() {
 
             return (
               <div key={pawn.id} className="card" style={{ padding: 16 }}>
-                <Link href={`/pawns/${pawn.id}`} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, textDecoration: 'none' }}>
+                <Link href={`/pawns/${pawn.id}`} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, textDecoration: 'none', color: 'inherit' }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'rgba(232,197,90,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
                     💍
                   </div>

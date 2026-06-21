@@ -33,6 +33,8 @@ type DashboardPayload = {
   user: AppUser
 }
 
+type DashboardCache = DashboardPayload
+
 export default function Dashboard() {
   const router = useRouter()
   const [user, setUser] = useState<AppUser | null>(() => getSession())
@@ -47,6 +49,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    hydrateFromCache()
     void loadDashboard()
     router.prefetch('/pawns')
     router.prefetch('/loans')
@@ -55,6 +58,28 @@ export default function Dashboard() {
     router.prefetch('/pawn/new')
     router.prefetch('/loans/new')
   }, [router])
+
+  function hydrateFromCache() {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem('dashboard:home')
+      if (!raw) return
+      const cached = JSON.parse(raw) as DashboardCache
+      setBudget(Number(cached.budget || 0))
+      setActivePawns(Number(cached.activePawns || 0))
+      setActiveAmount(Number(cached.activeAmount || 0))
+      setActiveLoans(Number(cached.activeLoans || 0))
+      setLoanAmount(Number(cached.loanAmount || 0))
+      setMonthInterest(Number(cached.monthInterest || 0))
+      setPendingPawns(cached.pendingPawns || [])
+      setPendingRedeems(cached.pendingRedeems || [])
+      setUser(cached.user || getSession())
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
+    }
+  }
 
   async function loadDashboard() {
     try {
@@ -77,6 +102,9 @@ export default function Dashboard() {
       setPendingPawns(data.pendingPawns || [])
       setPendingRedeems(data.pendingRedeems || [])
       setUser(data.user || session)
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('dashboard:home', JSON.stringify(data))
+      }
     } finally {
       setLoading(false)
     }

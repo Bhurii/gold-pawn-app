@@ -14,6 +14,10 @@ type LoanRow = {
   status: 'active' | 'closed'
 }
 
+type LoanListCache = {
+  loans: LoanRow[]
+}
+
 export default function LoanList() {
   const router = useRouter()
   const [loans, setLoans] = useState<LoanRow[]>([])
@@ -21,6 +25,7 @@ export default function LoanList() {
   const [filter, setFilter] = useState<'all' | 'active' | 'closed'>('all')
 
   useEffect(() => {
+    hydrateFromCache(filter)
     void loadLoans()
   }, [filter])
 
@@ -33,7 +38,7 @@ export default function LoanList() {
   }, [loans, router])
 
   async function loadLoans() {
-    setLoading(true)
+    setLoading((current) => (loans.length === 0 ? true : current))
     try {
       const params = new URLSearchParams()
       if (filter !== 'all') params.set('filter', filter)
@@ -44,11 +49,33 @@ export default function LoanList() {
         throw new Error(payload?.error || 'โหลดข้อมูลสินเชื่อไม่สำเร็จ')
       }
 
-      setLoans((payload?.loans || []) as LoanRow[])
+      const nextLoans = (payload?.loans || []) as LoanRow[]
+      setLoans(nextLoans)
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(getCacheKey(filter), JSON.stringify({ loans: nextLoans } satisfies LoanListCache))
+      }
     } catch {
       setLoans([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  function getCacheKey(nextFilter: 'all' | 'active' | 'closed') {
+    return `loan-list:${nextFilter}`
+  }
+
+  function hydrateFromCache(nextFilter: 'all' | 'active' | 'closed') {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem(getCacheKey(nextFilter))
+      if (!raw) return
+      const cached = JSON.parse(raw) as LoanListCache
+      setLoans(cached.loans || [])
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
     }
   }
 
@@ -93,7 +120,7 @@ export default function LoanList() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {loans.map((loan) => (
-            <Link key={loan.id} href={`/loans/${loan.id}`} className="card" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none' }}>
+            <Link key={loan.id} href={`/loans/${loan.id}`} className="card" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none', color: 'inherit' }}>
               <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>👤</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 700 }}>{loan.borrower_name}</div>
