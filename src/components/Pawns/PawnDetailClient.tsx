@@ -6,8 +6,10 @@ import PawnChecklist from '@/components/PawnChecklist'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { uploadSlip } from '@/lib/slip-storage'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { supabase } from '@/lib/supabase'
 import type { InterestRow, LinkPawn, PawnDetailData, PawnDetailRow, RedemptionRow, TransferSlipRow } from '@/lib/server/pawn-detail'
 import { fmt, toThaiDateLong } from '@/lib/utils'
@@ -22,7 +24,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
   const router = useRouter()
   const { showToast } = useToast()
   const user = getSession()
-  const isOwner = user?.role === 'owner'
+  const canManageTransfer = user?.role === 'owner' || user?.role === 'agent'
   const [pawn, setPawn] = useState<PawnDetailRow | null>(initialData.pawn)
   const [interests, setInterests] = useState<InterestRow[]>(initialData.interests)
   const [redemption, setRedemption] = useState<RedemptionRow | null>(initialData.redemption)
@@ -126,7 +128,8 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     setUploadingDocKey('pawn_ticket')
     try {
       const slipUrl = await uploadSlip(file, 'pawns')
-      await supabase.from('pawns').update({ pawn_slip_url: slipUrl }).eq('id', pawnId)
+      const updateResult = await supabase.from('pawns').update({ pawn_slip_url: slipUrl }).eq('id', pawnId)
+      assertSupabaseMutation(updateResult, 'บันทึกรูปตั๋วไม่สำเร็จ')
       await loadData()
       showToast({ tone: 'success', title: 'อัปรูปตั๋วแล้ว', message: `ตั๋ว #${pawn.ticket_no} ถูกบันทึกรูปเรียบร้อย` })
     } catch (error) {
@@ -140,7 +143,8 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     setUploadingDocKey(`interest_${interestId}`)
     try {
       const slipUrl = await uploadSlip(file, 'interest')
-      await supabase.from('interest_payments').update({ slip_url: slipUrl }).eq('id', interestId)
+      const updateResult = await supabase.from('interest_payments').update({ slip_url: slipUrl }).eq('id', interestId)
+      assertSupabaseMutation(updateResult, 'บันทึกสลิปตัดดอกไม่สำเร็จ')
       await loadData()
       showToast({ tone: 'success', title: 'อัปสลิปแล้ว', message: 'อัปสลิปตัดดอกย้อนหลังเรียบร้อย' })
     } catch (error) {
@@ -156,7 +160,8 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     setUploadingDocKey(`redemption_${column}`)
     try {
       const slipUrl = await uploadSlip(file, folder)
-      await supabase.from('redemptions').update({ [column]: slipUrl }).eq('id', redemption.id)
+      const updateResult = await supabase.from('redemptions').update({ [column]: slipUrl }).eq('id', redemption.id)
+      assertSupabaseMutation(updateResult, 'บันทึกหลักฐานไถ่ถอนไม่สำเร็จ')
       await loadData()
       showToast({ tone: 'success', title: 'อัปหลักฐานแล้ว', message: 'เพิ่มหลักฐานการไถ่ถอนย้อนหลังเรียบร้อย' })
     } catch (error) {
@@ -173,22 +178,25 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
       const transferMeta = getExpectedTransferMeta()
       if (!transferMeta) return
       const slipUrl = await uploadSlip(file, 'transfer')
-      await supabase.from('transfer_slips').insert({
+      const transferInsert = await supabase.from('transfer_slips').insert({
         pawn_id: pawnId,
         direction: transferMeta.direction,
         slip_url: slipUrl,
         amount: transferMeta.amount,
         confirmed_at: new Date().toISOString(),
       })
+      assertSupabaseMutation(transferInsert, 'บันทึกสลิปโอนเงินไม่สำเร็จ')
       if (pawn.tx_status === 'pending_transfer') {
-        await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
+        const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
+        assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
       }
-      await supabase.from('notifications').insert({
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'transfer_confirmed',
         message: `อัปสลิปโอนเงินแล้ว ตั๋ว #${pawn.ticket_no} ฿${transferMeta.amount.toLocaleString('th-TH')}`,
         pawn_id: String(pawnId),
-        action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
+        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
       await loadData()
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'ยืนยันการโอนเงินเรียบร้อยแล้ว' })
@@ -204,13 +212,15 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     if (!pawn) return
 
     setUploadingPawnSlip(true)
-    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
-    await supabase.from('notifications').insert({
+    const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
+    assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
+    const notificationInsert = await supabase.from('notifications').insert({
       type: 'bypass_cash',
       message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(pawnId),
-      action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
+      action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
     })
+    assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
     await pingPushDispatch()
     await loadData()
     setUploadingPawnSlip(false)
@@ -222,13 +232,15 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     if (!pawn) return
 
     setUploadingPawnSlip(true)
-    await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
-    await supabase.from('notifications').insert({
+    const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
+    assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
+    const notificationInsert = await supabase.from('notifications').insert({
       type: 'bypass_prepaid',
       message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(pawnId),
-      action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
+      action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
     })
+    assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
     await pingPushDispatch()
     await loadData()
     setUploadingPawnSlip(false)
@@ -313,7 +325,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
         onBypassPrepaid={handleBypassPrepaid}
         uploadingPawnSlip={uploadingPawnSlip}
         uploadingDocKey={uploadingDocKey}
-        isOwner={isOwner}
+        isOwner={canManageTransfer}
       />
 
       {pawn.status === 'active' && pawn.tx_status === 'active' && (

@@ -1,6 +1,9 @@
 'use client'
+
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { canViewAllFunds, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { getSession } from '@/lib/auth'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
 
@@ -29,7 +32,6 @@ type ReportPayload = {
 }
 
 type ReportCache = ReportPayload
-
 type SelectedPeriod = number | 'all'
 
 function getMonthIndex(dateStr: string) {
@@ -38,9 +40,17 @@ function getMonthIndex(dateStr: string) {
 
 export default function Report() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const session = getSession()
+  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
   const currentYear = new Date().getFullYear()
   const [selectedPeriod, setSelectedPeriod] = useState<SelectedPeriod>(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [ownerScope, setOwnerScope] = useState<'all' | FundOwnerKey>(() => {
+    const raw = searchParams.get('owner_scope')
+    if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
+    return isFundOwnerKey(raw) ? raw : defaultScope
+  })
   const [report, setReport] = useState<ReportPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [expandPawn, setExpandPawn] = useState(false)
@@ -53,14 +63,24 @@ export default function Report() {
   }, [currentYear])
 
   useEffect(() => {
-    hydrateFromCache(selectedYear)
-    void loadYearData(selectedYear)
-  }, [selectedYear])
+    hydrateFromCache(selectedYear, ownerScope)
+    void loadYearData(selectedYear, ownerScope)
+  }, [selectedYear, ownerScope])
 
-  async function loadYearData(year: number) {
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('owner_scope', ownerScope)
+    const next = `/report?${params.toString()}`
+    const current = searchParams.toString() ? `/report?${searchParams.toString()}` : '/report'
+    if (next !== current) {
+      router.replace(next)
+    }
+  }, [ownerScope, router, searchParams])
+
+  async function loadYearData(year: number, scope: 'all' | FundOwnerKey) {
     setLoading((current) => (report ? current : true))
     try {
-      const response = await fetch(`/api/report-summary?year=${year}`, { cache: 'no-store' })
+      const response = await fetch(`/api/report-summary?year=${year}&owner_scope=${encodeURIComponent(scope)}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload?.error || 'โหลดข้อมูลรายงานไม่สำเร็จ')
@@ -68,22 +88,22 @@ export default function Report() {
       const nextReport = payload as ReportPayload
       setReport(nextReport)
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(year), JSON.stringify(nextReport))
+        window.sessionStorage.setItem(getCacheKey(year, scope), JSON.stringify(nextReport))
       }
     } finally {
       setLoading(false)
     }
   }
 
-  function getCacheKey(year: number) {
-    return `report:${year}`
+  function getCacheKey(year: number, scope: string) {
+    return `report:${scope}:${year}`
   }
 
-  function hydrateFromCache(year: number) {
+  function hydrateFromCache(year: number, scope: string) {
     if (typeof window === 'undefined') return
 
     try {
-      const raw = window.sessionStorage.getItem(getCacheKey(year))
+      const raw = window.sessionStorage.getItem(getCacheKey(year, scope))
       if (!raw) return
       setReport(JSON.parse(raw) as ReportCache)
       setLoading(false)
@@ -143,6 +163,16 @@ export default function Report() {
           ))}
         </select>
       </div>
+
+      {canViewAllFunds(session) && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {getOwnerScopeOptions(session).map(({ value, label }) => (
+            <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }}>
@@ -240,7 +270,7 @@ export default function Report() {
                 {filteredPawnDetails.map((detail, index) => (
                   <div
                     key={index}
-                    onClick={() => router.push(`/pawns?search=${detail.ticket}`)}
+                    onClick={() => router.push(`/pawns?search=${detail.ticket}&owner_scope=${ownerScope}`)}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 0' }}
                   >
                     <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🥚</div>

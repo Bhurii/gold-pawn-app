@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
 import { pingPushDispatch } from '@/lib/push-client'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { supabase } from '@/lib/supabase'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
@@ -49,18 +50,20 @@ export default function OtherIncome() {
       const amount = parsePositiveMoney(form.amount, 'Income amount')
       const incomeDate = requireDate(form.income_date, 'Income date')
 
-      await supabase.from('other_income').insert({
+      const incomeInsert = await supabase.from('other_income').insert({
         income_date: incomeDate,
         amount,
         source: form.source,
         note: form.note,
       })
+      assertSupabaseMutation(incomeInsert, 'บันทึกรายได้ไม่สำเร็จ')
 
-      await supabase.from('notifications').insert({
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'other_income_added',
         message: `มีรายได้ใหม่ ${form.source} ฿${amount.toLocaleString('th-TH')}`,
-        action_url: createNotificationAction('/other-income', ['owner']),
+        action_url: createNotificationAction('/other-income', ['all']),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       setForm({ income_date: new Date().toISOString().split('T')[0], amount: '', source: '', note: '' })

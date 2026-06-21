@@ -12,10 +12,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const data = await getOrSetMemoryCache(`api:notifications:recent:${user.role}`, 10000, async () => {
+  const data = await getOrSetMemoryCache(`api:notifications:recent:${user.user_key}`, 10000, async () => {
     const [feed, pendingActions] = await Promise.all([
-      getNotificationFeed(user.role, 12),
-      getPendingActionFeed(user.role),
+      getNotificationFeed(user, 12),
+      getPendingActionFeed(user),
     ])
 
     return { notifications: feed, pendingActions }

@@ -1,11 +1,11 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { fetchSession, hasOwnerPin, loginAgent, loginOwnerWithPassword, loginOwnerWithPin } from '@/lib/auth'
+import { fetchSession, hasOwnerPin, loginAgent, loginOwnerWithPassword, loginOwnerWithPin, loginPhat } from '@/lib/auth'
 
 export default function Login() {
   const router = useRouter()
-  const [mode, setMode] = useState<'owner' | 'agent'>('agent')
+  const [mode, setMode] = useState<'owner' | 'agent' | 'viewer'>('agent')
   const [ownerHasPin, setOwnerHasPin] = useState<boolean | null>(null)
   const [pin, setPin] = useState('')
   const [email, setEmail] = useState('')
@@ -25,7 +25,7 @@ export default function Login() {
     setOwnerHasPin(exists)
   }
 
-  function resetForm(nextMode: 'owner' | 'agent') {
+  function resetForm(nextMode: 'owner' | 'agent' | 'viewer') {
     setMode(nextMode)
     setError('')
     setPin('')
@@ -46,7 +46,9 @@ export default function Login() {
     setError('')
     const result = mode === 'owner'
       ? await loginOwnerWithPin(value)
-      : await loginAgent(value)
+      : mode === 'agent'
+        ? await loginAgent(value)
+        : await loginPhat(value)
 
     if (result.error) {
       setError(result.error)
@@ -74,34 +76,49 @@ export default function Login() {
   const showOwnerPin = mode === 'owner' && ownerHasPin !== false
   const showOwnerPassword = mode === 'owner' && ownerHasPin === false
   const showAgentPin = mode === 'agent'
+  const showViewerPin = mode === 'viewer'
+
+  const modeTitle = mode === 'owner' ? 'โทนี่' : mode === 'agent' ? 'เจ้หลุยส์' : 'เจ้ภัส'
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 24px', background: 'var(--black-900)' }}>
+    <div style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'var(--black-900)' }}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div style={{ fontSize: 64, marginBottom: 12 }}>🪿</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)', letterSpacing: -0.5 }}>ห่านทองคำ</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)' }}>ห่านทองคำ</div>
         <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 6 }}>ระบบดูแลการลงทุน</div>
       </div>
 
-      <div style={{ display: 'flex', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 16, padding: 4, gap: 4, marginBottom: 32, width: '100%', maxWidth: 320 }}>
-        <button
-          onClick={() => resetForm('agent')}
-          style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s', background: mode === 'agent' ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent', color: mode === 'agent' ? '#080808' : 'var(--text-muted)' }}
-        >
-          เจ้หลุยส์
-        </button>
-        <button
-          onClick={() => resetForm('owner')}
-          style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', fontWeight: 700, fontSize: 15, cursor: 'pointer', transition: 'all 0.2s', background: mode === 'owner' ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent', color: mode === 'owner' ? '#080808' : 'var(--text-muted)' }}
-        >
-          โทนี่
-        </button>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', borderRadius: 16, padding: 4, gap: 4, marginBottom: 32, width: '100%', maxWidth: 360 }}>
+        {([
+          ['agent', 'เจ้หลุยส์'],
+          ['owner', 'โทนี่'],
+          ['viewer', 'เจ้ภัส'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => resetForm(value)}
+            style={{
+              flex: 1,
+              padding: '12px 8px',
+              borderRadius: 12,
+              border: 'none',
+              fontWeight: 700,
+              fontSize: 14,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              background: mode === value ? 'linear-gradient(135deg,#C9922A,#F2C94C)' : 'transparent',
+              color: mode === value ? '#080808' : 'var(--text-muted)',
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {(showAgentPin || showOwnerPin) && (
+      {(showAgentPin || showOwnerPin || showViewerPin) && (
         <div style={{ width: '100%', maxWidth: 320, textAlign: 'center' }}>
           <div style={{ fontSize: 16, color: 'var(--text-secondary)', marginBottom: 24 }}>
-            {mode === 'owner' ? 'กรอก PIN โทนี่ 6 หลัก' : 'กรอก PIN 6 หลัก'}
+            กรอก PIN {modeTitle} 6 หลัก
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 32 }}>
@@ -143,7 +160,6 @@ export default function Login() {
                   fontSize: digit === '⌫' ? 22 : 24,
                   fontWeight: 600,
                   cursor: digit === '' ? 'default' : 'pointer',
-                  transition: 'background 0.1s',
                   opacity: loading ? 0.5 : 1,
                 }}
               >
@@ -159,16 +175,10 @@ export default function Login() {
       {showOwnerPassword && (
         <div style={{ width: '100%', maxWidth: 320 }}>
           <div style={{ fontSize: 16, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 18 }}>
-            เข้าด้วยอีเมลเดิมก่อน แล้วค่อยไปตั้ง PIN ในหน้าตั้งค่า
+            เข้าแบบอีเมลเดิมก่อน แล้วค่อยไปตั้ง PIN ในหน้าตั้งค่า
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input
-              className="input-field"
-              type="email"
-              placeholder="อีเมลโทนี่"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
+            <input className="input-field" type="email" placeholder="อีเมลโทนี่" value={email} onChange={(event) => setEmail(event.target.value)} />
             <input
               className="input-field"
               type="password"

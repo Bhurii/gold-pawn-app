@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -17,6 +19,7 @@ type PawnRow = {
   pawn_date: string
   amount: number
   notes?: string
+  fund_owner?: FundOwnerKey
 }
 
 type OcrTicketData = {
@@ -69,7 +72,7 @@ function TopupContent() {
   }, [pawnIdFromUrl])
 
   async function loadPawn(id: string) {
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes').eq('id', id).maybeSingle()
+    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes, fund_owner').eq('id', id).maybeSingle()
     if (data) setPawn(data as PawnRow)
     setLoading(false)
   }
@@ -190,6 +193,7 @@ function TopupContent() {
         ticket_no: form.new_ticket_no,
         pawn_date: newDate,
         amount: newAmount,
+        fund_owner: pawn.fund_owner || 'tony',
         pawn_slip_url: newTicketUrl,
         status: 'active',
         tx_status: 'pending_transfer',
@@ -200,13 +204,14 @@ function TopupContent() {
       }).select().single()
       if (error) throw error
 
-      await supabase.from('pawns').update({
+      const previousPawnUpdate = await supabase.from('pawns').update({
         status: 'redeemed',
         tx_status: 'redeemed',
         notes: pawn.notes ? `${pawn.notes} | เพิ่มยอด -> ตั๋วใหม่ #${form.new_ticket_no}` : `เพิ่มยอด -> ตั๋วใหม่ #${form.new_ticket_no}`,
       }).eq('id', pawn.id)
+      assertSupabaseMutation(previousPawnUpdate, 'อัปเดตตั๋วเดิมไม่สำเร็จ')
 
-      await supabase.from('redemptions').insert({
+      const redemptionInsert = await supabase.from('redemptions').insert({
         pawn_id: pawn.id,
         redeem_date: newDate,
         interest_last: interest,
@@ -216,23 +221,26 @@ function TopupContent() {
         transfer_slip_url: transferUrl,
         status: 'confirmed',
       })
+      assertSupabaseMutation(redemptionInsert, 'บันทึกรายการเพิ่มยอดไม่สำเร็จ')
 
       if (transferUrl) {
-        await supabase.from('transfer_slips').insert({
+        const transferInsert = await supabase.from('transfer_slips').insert({
           pawn_id: newPawn.id,
           direction: 'mom_to_me',
           slip_url: transferUrl,
           amount: topupAmount,
           confirmed_at: new Date().toISOString(),
         })
+        assertSupabaseMutation(transferInsert, 'บันทึกสลิปโอนเงินไม่สำเร็จ')
       }
 
-      await supabase.from('notifications').insert({
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'topup',
         message: `เพิ่มยอดตั๋ว #${pawn.ticket_no} -> ตั๋วใหม่ #${form.new_ticket_no} ยอด ฿${fmt(newAmount)} รอโอนเงิน ฿${fmt(topupAmount)}`,
         pawn_id: newPawn.id,
-        action_url: createNotificationAction(`/pawns/${newPawn.id}`, ['owner']),
+        action_url: createNotificationAction(`/pawns/${newPawn.id}`, [...getNotificationRecipientsForFundOwner(pawn.fund_owner || 'tony')]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       showToast({ tone: 'success', title: 'เพิ่มยอดสำเร็จ', message: `ตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}` })

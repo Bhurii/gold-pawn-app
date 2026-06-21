@@ -1,11 +1,13 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import type { FundOwnerKey, UserRole } from '@/lib/fund-owner'
 
-export type SessionUserRole = 'owner' | 'agent'
+export type SessionUserRole = UserRole
 
 export type SessionUser = {
   id: string
   role: SessionUserRole
+  user_key: FundOwnerKey
   display_name: string
   auth_type: 'email' | 'pin'
 }

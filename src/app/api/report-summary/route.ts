@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/admin'
+import { applyFundScopeFilter, resolveFundScope } from '@/lib/server/fund-access'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { getOrSetMemoryCache } from '@/lib/server/memory-cache'
 
@@ -24,9 +25,24 @@ export async function GET(request: NextRequest) {
 
   const firstDay = `${year}-01-01`
   const lastDay = `${year}-12-31`
+  const ownerScope = resolveFundScope(user, new URL(request.url).searchParams.get('owner_scope'))
 
-  const data = await getOrSetMemoryCache(`api:report-summary:${year}`, 60000, async () => {
+  const data = await getOrSetMemoryCache(`api:report-summary:${ownerScope}:${year}`, 60000, async () => {
     const supabase = createAdminClient()
+    let interestsQuery = supabase.from('interest_payments').select('amount, payment_date, pawns!inner(ticket_no, fund_owner)').gte('payment_date', firstDay).lte('payment_date', lastDay)
+    let redemptionsQuery = supabase.from('redemptions').select('interest_last, redeem_date, pawns!inner(ticket_no, fund_owner)').gte('redeem_date', firstDay).lte('redeem_date', lastDay)
+    let loanTxQuery = supabase.from('loan_transactions').select('amount, transaction_date, loans!inner(borrower_name, fund_owner)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay)
+    let pawnsQuery = supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active')
+    let loansQuery = supabase.from('loans').select('remaining_principal').eq('status', 'active')
+
+    if (ownerScope !== 'all') {
+      interestsQuery = interestsQuery.eq('pawns.fund_owner', ownerScope)
+      redemptionsQuery = redemptionsQuery.eq('pawns.fund_owner', ownerScope)
+      loanTxQuery = loanTxQuery.eq('loans.fund_owner', ownerScope)
+      pawnsQuery = applyFundScopeFilter(pawnsQuery, ownerScope)
+      loansQuery = applyFundScopeFilter(loansQuery, ownerScope)
+    }
+
     const [
       { data: settings },
       { data: interests },
@@ -36,11 +52,11 @@ export async function GET(request: NextRequest) {
       { data: loans },
     ] = await Promise.all([
       supabase.from('settings').select('invest_budget').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('interest_payments').select('amount, payment_date, pawns(ticket_no)').gte('payment_date', firstDay).lte('payment_date', lastDay),
-      supabase.from('redemptions').select('interest_last, redeem_date, pawns(ticket_no)').gte('redeem_date', firstDay).lte('redeem_date', lastDay),
-      supabase.from('loan_transactions').select('amount, transaction_date, loans(borrower_name)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay),
-      supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active'),
-      supabase.from('loans').select('remaining_principal').eq('status', 'active'),
+      interestsQuery,
+      redemptionsQuery,
+      loanTxQuery,
+      pawnsQuery,
+      loansQuery,
     ])
 
     const monthlyData = Array.from({ length: 12 }, () => 0)

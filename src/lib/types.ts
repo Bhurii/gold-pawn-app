@@ -5,6 +5,7 @@ export type PawnTxStatus = 'pending_transfer' | 'active' | 'pending_redeem' | 'r
 export interface Pawn {
   id: string
   ticket_no: string
+  fund_owner?: 'tony' | 'louise' | 'phat'
   pawn_date: string
   amount: number
   pawn_slip_url?: string

@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { supabase } from '@/lib/supabase'
 import type { LoanDetailData, LoanRow, LoanTxnRow } from '@/lib/server/loan-detail'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
@@ -109,7 +111,7 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
       const amount = txnType === 'close' ? loan.remaining_principal : parsePositiveMoney(form.amount, 'Transaction amount')
       const transactionDate = requireDate(form.date, 'Transaction date')
 
-      await supabase.from('loan_transactions').insert({
+      const txnInsert = await supabase.from('loan_transactions').insert({
         loan_id: loanId,
         type: txnType,
         amount,
@@ -117,12 +119,15 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
         slip_url: slipUrl,
         note: form.note,
       })
+      assertSupabaseMutation(txnInsert, 'บันทึกประวัติสินเชื่อไม่สำเร็จ')
 
       if (txnType === 'principal_payment') {
         const newRemaining = Math.max(0, loan.remaining_principal - amount)
-        await supabase.from('loans').update({ remaining_principal: newRemaining }).eq('id', loanId)
+        const loanUpdate = await supabase.from('loans').update({ remaining_principal: newRemaining }).eq('id', loanId)
+        assertSupabaseMutation(loanUpdate, 'อัปเดตยอดคงเหลือไม่สำเร็จ')
       } else if (txnType === 'close') {
-        await supabase.from('loans').update({ remaining_principal: 0, status: 'closed' }).eq('id', loanId)
+        const loanUpdate = await supabase.from('loans').update({ remaining_principal: 0, status: 'closed' }).eq('id', loanId)
+        assertSupabaseMutation(loanUpdate, 'ปิดสินเชื่อไม่สำเร็จ')
       }
 
       const notificationType =
@@ -139,11 +144,12 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
             ? `ตัดต้นสินเชื่อ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
             : `ปิดสินเชื่อ ${loan.borrower_name} เรียบร้อย`
 
-      await supabase.from('notifications').insert({
+      const notificationInsert = await supabase.from('notifications').insert({
         type: notificationType,
         message: notificationMessage,
-        action_url: createNotificationAction(`/loans/${loanId}`, ['owner']),
+        action_url: createNotificationAction(`/loans/${loanId}`, [...getNotificationRecipientsForFundOwner((loan.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       const typeLabel = txnType === 'interest' ? 'ตัดดอก' : txnType === 'principal_payment' ? 'ตัดต้น' : 'ปิดหนี้'
@@ -165,7 +171,8 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
     try {
       assertImageFile(file)
       const slipUrl = await uploadSlip(file, 'loans')
-      await supabase.from('loan_transactions').update({ slip_url: slipUrl }).eq('id', txnId)
+      const updateResult = await supabase.from('loan_transactions').update({ slip_url: slipUrl }).eq('id', txnId)
+      assertSupabaseMutation(updateResult, 'บันทึกสลิปย้อนหลังไม่สำเร็จ')
       await loadData()
       showToast({ tone: 'success', title: 'อัปสลิปแล้ว', message: 'เพิ่มหลักฐานย้อนหลังเรียบร้อย' })
     } catch (error) {

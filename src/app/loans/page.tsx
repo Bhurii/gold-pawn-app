@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
+import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { getSession } from '@/lib/auth'
 
 type LoanRow = {
   id: string
   borrower_name: string
+  fund_owner?: FundOwnerKey
   start_date: string
   interest_rate: number
   remaining_principal: number
@@ -18,16 +21,43 @@ type LoanListCache = {
   loans: LoanRow[]
 }
 
+function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 700,
+        marginTop: 6,
+        ...FUND_OWNER_BADGE_STYLES[owner],
+      }}
+    >
+      {FUND_OWNER_BADGES[owner]}
+    </span>
+  )
+}
+
 export default function LoanList() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const session = getSession()
+  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
   const [loans, setLoans] = useState<LoanRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'active' | 'closed'>('all')
+  const [filter, setFilter] = useState<'all' | 'active' | 'closed'>((searchParams.get('filter') as 'all' | 'active' | 'closed') || 'all')
+  const [ownerScope, setOwnerScope] = useState<'all' | FundOwnerKey>(() => {
+    const raw = searchParams.get('owner_scope')
+    if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
+    return isFundOwnerKey(raw) ? raw : defaultScope
+  })
 
   useEffect(() => {
-    hydrateFromCache(filter)
+    hydrateFromCache(filter, ownerScope)
     void loadLoans()
-  }, [filter])
+  }, [filter, ownerScope])
 
   useEffect(() => {
     loans.slice(0, 8).forEach((loan) => {
@@ -37,22 +67,32 @@ export default function LoanList() {
     router.prefetch('/loans/new')
   }, [loans, router])
 
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (filter !== 'all') params.set('filter', filter)
+    params.set('owner_scope', ownerScope)
+    const nextUrl = `/loans?${params.toString()}`
+    const currentUrl = searchParams.toString() ? `/loans?${searchParams.toString()}` : '/loans'
+    if (nextUrl !== currentUrl) {
+      router.replace(nextUrl)
+    }
+  }, [filter, ownerScope, router, searchParams])
+
   async function loadLoans() {
     setLoading((current) => (loans.length === 0 ? true : current))
     try {
       const params = new URLSearchParams()
       if (filter !== 'all') params.set('filter', filter)
+      params.set('owner_scope', ownerScope)
 
-      const response = await fetch(`/api/loans${params.toString() ? `?${params.toString()}` : ''}`, { cache: 'no-store' })
+      const response = await fetch(`/api/loans?${params.toString()}`, { cache: 'no-store' })
       const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload?.error || 'โหลดข้อมูลสินเชื่อไม่สำเร็จ')
-      }
+      if (!response.ok) throw new Error(payload?.error || 'โหลดข้อมูลสินเชื่อไม่สำเร็จ')
 
       const nextLoans = (payload?.loans || []) as LoanRow[]
       setLoans(nextLoans)
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(filter), JSON.stringify({ loans: nextLoans } satisfies LoanListCache))
+        window.sessionStorage.setItem(getCacheKey(filter, ownerScope), JSON.stringify({ loans: nextLoans } satisfies LoanListCache))
       }
     } catch {
       setLoans([])
@@ -61,15 +101,14 @@ export default function LoanList() {
     }
   }
 
-  function getCacheKey(nextFilter: 'all' | 'active' | 'closed') {
-    return `loan-list:${nextFilter}`
+  function getCacheKey(nextFilter: 'all' | 'active' | 'closed', nextScope: string) {
+    return `loan-list:${nextScope}:${nextFilter}`
   }
 
-  function hydrateFromCache(nextFilter: 'all' | 'active' | 'closed') {
+  function hydrateFromCache(nextFilter: 'all' | 'active' | 'closed', nextScope: string) {
     if (typeof window === 'undefined') return
-
     try {
-      const raw = window.sessionStorage.getItem(getCacheKey(nextFilter))
+      const raw = window.sessionStorage.getItem(getCacheKey(nextFilter, nextScope))
       if (!raw) return
       const cached = JSON.parse(raw) as LoanListCache
       setLoans(cached.loans || [])
@@ -91,22 +130,24 @@ export default function LoanList() {
         </Link>
       </div>
 
+      {canViewAllFunds(session) && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {getOwnerScopeOptions(session).map(({ value, label }) => (
+            <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {(['all', 'active', 'closed'] as const).map((value) => (
           <button
             key={value}
             onClick={() => setFilter(value)}
-            style={{
-              padding: '8px 18px',
-              borderRadius: 99,
-              fontSize: 14,
-              fontWeight: 600,
-              border: '1px solid',
-              cursor: 'pointer',
-              borderColor: filter === value ? 'var(--gold)' : 'var(--border)',
-              background: filter === value ? 'rgba(242,201,76,0.15)' : 'transparent',
-              color: filter === value ? 'var(--gold)' : 'var(--text-muted)',
-            }}
+            className="filter-chip"
+            data-active={filter === value}
+            type="button"
           >
             {value === 'all' ? 'ทั้งหมด' : value === 'active' ? 'ค้างอยู่' : 'ปิดแล้ว'}
           </button>
@@ -125,6 +166,9 @@ export default function LoanList() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 700 }}>{loan.borrower_name}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>เริ่ม {new Date(loan.start_date).toLocaleDateString('th-TH')}</div>
+                <div style={{ marginTop: 4 }}>
+                  <OwnerBadge owner={loan.fund_owner || 'tony'} />
+                </div>
                 {loan.interest_rate > 0 && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ดอก {loan.interest_rate}%/เดือน</div>}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>

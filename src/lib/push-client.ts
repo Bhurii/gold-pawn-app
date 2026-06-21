@@ -10,7 +10,7 @@ type SubscriptionEnvelope = {
     p256dh?: string
     auth?: string
   }
-  role?: 'owner' | 'agent'
+  role?: 'owner' | 'agent' | 'viewer'
   userId?: string
   displayName?: string
 }

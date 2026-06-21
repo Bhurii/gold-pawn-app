@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchLoanDetail } from '@/lib/server/loan-detail'
+import { canAccessFundOwner } from '@/lib/server/fund-access'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 
 export const runtime = 'nodejs'
@@ -19,6 +20,9 @@ export async function GET(
     const data = await fetchLoanDetail(id)
     if (!data.loan) {
       return NextResponse.json({ loan: null }, { status: 404 })
+    }
+    if (!canAccessFundOwner(user, data.loan.fund_owner)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     return NextResponse.json(data)
   } catch (error) {
