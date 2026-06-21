@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { fetchSession, getSession, type AppUser } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
@@ -47,6 +48,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     void loadDashboard()
+    router.prefetch('/pawns')
+    router.prefetch('/loans')
+    router.prefetch('/report')
+    router.prefetch('/settings')
     router.prefetch('/pawn/new')
     router.prefetch('/loans/new')
   }, [router])
@@ -105,9 +110,9 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <NotificationBell />
-          <button onClick={() => router.push('/settings')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 26 }}>
+          <Link href="/settings" style={{ cursor: 'pointer', fontSize: 26, textDecoration: 'none' }}>
             ⚙️
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -154,32 +159,32 @@ export default function Dashboard() {
         )}
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <button className="btn-primary" onClick={() => router.push('/pawn/new')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60 }}>
+          <Link href="/pawn/new" className="btn-primary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, textDecoration: 'none' }}>
             🪺 รับจำนำ
-          </button>
-          <button className="btn-secondary" onClick={() => router.push('/pawns')} style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)' }}>
+          </Link>
+          <Link href="/pawns" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)', textDecoration: 'none' }}>
             🔍 ค้นหาตั๋ว
-          </button>
+          </Link>
         </div>
       </div>
 
       <div className="section-label">สินเชื่อ</div>
       <div className="card" style={{ marginBottom: 14, padding: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <button className="btn-primary" onClick={() => router.push('/loans/new')} style={{ fontSize: 15, padding: '16px 12px' }}>
+          <Link href="/loans/new" className="btn-primary" style={{ fontSize: 15, padding: '16px 12px', textDecoration: 'none' }}>
             🌱 ปล่อยกู้ใหม่
-          </button>
-          <button className="btn-secondary" onClick={() => router.push('/loans')} style={{ fontSize: 15, padding: '16px 12px' }}>
+          </Link>
+          <Link href="/loans" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', textDecoration: 'none' }}>
             🍊 ดูสินเชื่อ
-          </button>
+          </Link>
         </div>
       </div>
 
       <div className="section-label">รายงาน</div>
       <div className="card" style={{ marginBottom: 14, padding: 16 }}>
-        <button className="btn-secondary" onClick={() => router.push('/report')} style={{ fontSize: 15, padding: '16px 12px', width: '100%' }}>
+        <Link href="/report" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', width: '100%', textDecoration: 'none' }}>
           📊 ดูรายงาน
-        </button>
+        </Link>
       </div>
 
       <BottomNav />

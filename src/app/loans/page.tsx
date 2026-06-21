@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
 
@@ -27,6 +28,8 @@ export default function LoanList() {
     loans.slice(0, 8).forEach((loan) => {
       router.prefetch(`/loans/${loan.id}`)
     })
+    router.prefetch('/')
+    router.prefetch('/loans/new')
   }, [loans, router])
 
   async function loadLoans() {
@@ -54,11 +57,11 @@ export default function LoanList() {
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <Link href="/" style={{ color: 'var(--gold)', fontSize: 26, cursor: 'pointer', textDecoration: 'none' }}>←</Link>
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>สินเชื่อ</div>
-        <button onClick={() => router.push('/loans/new')} style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#C9922A,#F2C94C)', color: '#080808', border: 'none', borderRadius: 12, padding: '8px 18px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+        <Link href="/loans/new" style={{ marginLeft: 'auto', background: 'linear-gradient(135deg,#C9922A,#F2C94C)', color: '#080808', borderRadius: 12, padding: '8px 18px', fontSize: 15, fontWeight: 700, cursor: 'pointer', textDecoration: 'none' }}>
           + ใหม่
-        </button>
+        </Link>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
@@ -90,7 +93,7 @@ export default function LoanList() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {loans.map((loan) => (
-            <div key={loan.id} className="card" onClick={() => router.push(`/loans/${loan.id}`)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
+            <Link key={loan.id} href={`/loans/${loan.id}`} className="card" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none' }}>
               <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>👤</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 700 }}>{loan.borrower_name}</div>
@@ -103,7 +106,7 @@ export default function LoanList() {
                   {loan.status === 'active' ? 'ค้างอยู่' : 'ปิดแล้ว'}
                 </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

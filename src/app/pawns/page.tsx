@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Pawn } from '@/lib/types'
 import BottomNav from '@/components/BottomNav'
@@ -65,6 +66,10 @@ export default function PawnList() {
   useEffect(() => {
     pawns.slice(0, 8).forEach((pawn) => {
       router.prefetch(`/pawns/${pawn.id}`)
+      if (pawn.status === 'active' && pawn.tx_status === 'active') {
+        router.prefetch(`/interest?pawn_id=${pawn.id}`)
+        router.prefetch(`/redeem?pawn_id=${pawn.id}`)
+      }
     })
   }, [pawns, router])
 
@@ -186,7 +191,7 @@ export default function PawnList() {
 
             return (
               <div key={pawn.id} className="card" style={{ padding: 16 }}>
-                <div onClick={() => router.push(`/pawns/${pawn.id}`)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                <Link href={`/pawns/${pawn.id}`} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, textDecoration: 'none' }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'rgba(232,197,90,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
                     💍
                   </div>
@@ -207,7 +212,7 @@ export default function PawnList() {
                       {badge.label}
                     </span>
                   </div>
-                </div>
+                </Link>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                   <button type="button" className="quick-link" onClick={() => router.push(`/interest?pawn_id=${pawn.id}`)} disabled={pawn.status !== 'active' || pawn.tx_status !== 'active'}>
