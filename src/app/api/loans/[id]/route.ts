@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/server/admin'
+import { fetchLoanDetail } from '@/lib/server/loan-detail'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 
 export const runtime = 'nodejs'
@@ -15,34 +15,13 @@ export async function GET(
   }
 
   const { id } = await context.params
-  const supabase = createAdminClient()
-
-  const { data: loan, error: loanError } = await supabase
-    .from('loans')
-    .select('id, borrower_name, principal, remaining_principal, interest_rate, notes, status')
-    .eq('id', id)
-    .maybeSingle()
-
-  if (loanError) {
-    return NextResponse.json({ error: loanError.message }, { status: 500 })
+  try {
+    const data = await fetchLoanDetail(id)
+    if (!data.loan) {
+      return NextResponse.json({ loan: null }, { status: 404 })
+    }
+    return NextResponse.json(data)
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Failed to load loan detail' }, { status: 500 })
   }
-
-  if (!loan) {
-    return NextResponse.json({ loan: null }, { status: 404 })
-  }
-
-  const { data: txns, error: txnError } = await supabase
-    .from('loan_transactions')
-    .select('id, type, amount, transaction_date, slip_url, note')
-    .eq('loan_id', id)
-    .order('transaction_date')
-
-  if (txnError) {
-    return NextResponse.json({ error: txnError.message }, { status: 500 })
-  }
-
-  return NextResponse.json({
-    loan,
-    txns: txns || [],
-  })
 }

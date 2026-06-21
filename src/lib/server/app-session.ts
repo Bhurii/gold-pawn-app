@@ -17,6 +17,7 @@ type SessionPayload = {
 
 const COOKIE_NAME = 'haanthong_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 14
+export const SESSION_COOKIE_NAME = COOKIE_NAME
 
 function getSessionSecret() {
   return process.env.APP_SESSION_SECRET
