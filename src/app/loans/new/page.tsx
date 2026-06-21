@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
+import { getSession } from '@/lib/auth'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { supabase } from '@/lib/supabase'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
@@ -11,6 +13,9 @@ import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } 
 export default function NewLoan() {
   const router = useRouter()
   const { showToast } = useToast()
+  const session = getSession()
+  const availableOwners = getAccessibleFundOwners(session)
+  const [fundOwner, setFundOwner] = useState<FundOwnerKey>(getDefaultFundOwner(session))
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     borrower_name: '',
@@ -42,6 +47,7 @@ export default function NewLoan() {
         principal,
         remaining_principal: principal,
         interest_rate: interestRate,
+        fund_owner: fundOwner,
         notes: form.notes,
         status: 'active',
       }).select().single()
@@ -57,8 +63,8 @@ export default function NewLoan() {
 
       await supabase.from('notifications').insert({
         type: 'loan_created',
-        message: `ปล่อยกู้ใหม่ ${form.borrower_name} ฿${principal.toLocaleString('th-TH')}`,
-        action_url: createNotificationAction(`/loans/${loan.id}`, ['owner']),
+        message: `ปล่อยกู้ใหม่ ${form.borrower_name} ฿${principal.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]}`,
+        action_url: createNotificationAction(`/loans/${loan.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
       })
       await pingPushDispatch()
 
@@ -77,6 +83,19 @@ export default function NewLoan() {
         <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
         <div style={{ fontSize: 22, fontWeight: 800 }}>ปล่อยกู้ใหม่</div>
       </div>
+
+      {availableOwners.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>ทุนของใคร</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {availableOwners.map((owner) => (
+              <button key={owner} type="button" className="filter-chip" data-active={fundOwner === owner} onClick={() => setFundOwner(owner)}>
+                {FUND_OWNER_BADGES[owner]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
@@ -103,7 +122,7 @@ export default function NewLoan() {
 
       <div style={{ marginTop: 24 }}>
         <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-          {saving ? 'กำลังบันทึก...' : 'บันทึกการปล่อยกู้'}
+          {saving ? 'กำลังบันทึก...' : `บันทึกการปล่อยกู้ ${FUND_OWNER_LABELS[fundOwner]}`}
         </button>
       </div>
       <div style={{ height: 32 }} />

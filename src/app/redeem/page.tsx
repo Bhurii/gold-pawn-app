@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import { uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -15,6 +16,7 @@ type PawnRow = {
   ticket_no: string
   pawn_date: string
   amount: number
+  fund_owner?: FundOwnerKey
 }
 
 type InterestPayment = {
@@ -126,7 +128,7 @@ function RedeemContent() {
         type: 'redeem_pending',
         message: `มีรายการไถ่ถอน ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอยืนยัน`,
         pawn_id: selected.id,
-        action_url: createNotificationAction(`/redeem/confirm/${redemption.id}`, ['owner']),
+        action_url: createNotificationAction(`/redeem/confirm/${redemption.id}`, [...getNotificationRecipientsForFundOwner(selected.fund_owner || 'tony')]),
       })
       await pingPushDispatch()
 

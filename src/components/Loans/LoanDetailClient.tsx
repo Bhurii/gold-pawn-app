@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { supabase } from '@/lib/supabase'
@@ -142,7 +143,7 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
       await supabase.from('notifications').insert({
         type: notificationType,
         message: notificationMessage,
-        action_url: createNotificationAction(`/loans/${loanId}`, ['owner']),
+        action_url: createNotificationAction(`/loans/${loanId}`, [...getNotificationRecipientsForFundOwner((loan.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
       })
       await pingPushDispatch()
 

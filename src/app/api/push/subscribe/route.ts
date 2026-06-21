@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
   await upsertPushSubscription({
     ...payload,
     role: user.role,
+    userKey: user.user_key,
     userId: user.id,
     displayName: user.display_name,
   })

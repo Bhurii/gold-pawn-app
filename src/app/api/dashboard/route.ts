@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/admin'
+import { applyFundScopeFilter, resolveFundScope } from '@/lib/server/fund-access'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { getOrSetMemoryCache } from '@/lib/server/memory-cache'
 
@@ -14,8 +15,23 @@ export async function GET(request: NextRequest) {
 
   const now = new Date()
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const data = await getOrSetMemoryCache(`api:dashboard:${firstDay}`, 15000, async () => {
+  const ownerScope = resolveFundScope(user, new URL(request.url).searchParams.get('owner_scope'))
+  const data = await getOrSetMemoryCache(`api:dashboard:${ownerScope}:${firstDay}`, 15000, async () => {
     const supabase = createAdminClient()
+    let pawnsQuery = supabase.from('pawns').select('id, ticket_no, fund_owner, amount, tx_status').eq('status', 'active')
+    let pendingRedeemQuery = supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount, fund_owner)').eq('status', 'pending_confirm')
+    let loansQuery = supabase.from('loans').select('id, remaining_principal').eq('status', 'active')
+    let interestsQuery = supabase.from('interest_payments').select('amount, pawns!inner(fund_owner)').gte('payment_date', firstDay)
+    let redemptionsQuery = supabase.from('redemptions').select('interest_last, pawns!inner(fund_owner)').gte('redeem_date', firstDay)
+    let loanTxQuery = supabase.from('loan_transactions').select('amount, loans!inner(fund_owner)').eq('type', 'interest').gte('transaction_date', firstDay)
+
+    pawnsQuery = applyFundScopeFilter(pawnsQuery, ownerScope)
+    pendingRedeemQuery = ownerScope === 'all' ? pendingRedeemQuery : pendingRedeemQuery.eq('pawns.fund_owner', ownerScope)
+    loansQuery = applyFundScopeFilter(loansQuery, ownerScope)
+    interestsQuery = ownerScope === 'all' ? interestsQuery : interestsQuery.eq('pawns.fund_owner', ownerScope)
+    redemptionsQuery = ownerScope === 'all' ? redemptionsQuery : redemptionsQuery.eq('pawns.fund_owner', ownerScope)
+    loanTxQuery = ownerScope === 'all' ? loanTxQuery : loanTxQuery.eq('loans.fund_owner', ownerScope)
+
     const [
       { data: settings },
       { data: pawns },
@@ -26,12 +42,12 @@ export async function GET(request: NextRequest) {
       { data: loanTxns },
     ] = await Promise.all([
       supabase.from('settings').select('invest_budget').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-      supabase.from('pawns').select('id, ticket_no, amount, tx_status').eq('status', 'active'),
-      supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount)').eq('status', 'pending_confirm'),
-      supabase.from('loans').select('id, remaining_principal').eq('status', 'active'),
-      supabase.from('interest_payments').select('amount').gte('payment_date', firstDay),
-      supabase.from('redemptions').select('interest_last').gte('redeem_date', firstDay),
-      supabase.from('loan_transactions').select('amount').eq('type', 'interest').gte('transaction_date', firstDay),
+      pawnsQuery,
+      pendingRedeemQuery,
+      loansQuery,
+      interestsQuery,
+      redemptionsQuery,
+      loanTxQuery,
     ])
 
     const activeReadyPawns = (pawns || []).filter((pawn) => pawn.tx_status === 'active')

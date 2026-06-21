@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -23,6 +24,7 @@ type PawnRow = {
   id: string
   ticket_no: string
   amount: number
+  fund_owner?: FundOwnerKey
 }
 
 export default function ConfirmRedeem() {
@@ -37,7 +39,7 @@ export default function ConfirmRedeem() {
   const [viewImg, setViewImg] = useState('')
 
   useEffect(() => {
-    if (user?.role !== 'owner') {
+    if (user?.role === 'viewer') {
       router.replace('/')
       return
     }
@@ -57,7 +59,7 @@ export default function ConfirmRedeem() {
 
       const { data: pawnData } = await supabase
         .from('pawns')
-        .select('id, ticket_no, amount')
+        .select('id, ticket_no, amount, fund_owner')
         .eq('id', redemptionRow.pawn_id)
         .maybeSingle()
 
@@ -76,7 +78,7 @@ export default function ConfirmRedeem() {
         type: 'redeem_confirmed',
         message: `ยืนยันไถ่ถอนแล้ว ตั๋ว #${pawn?.ticket_no}`,
         pawn_id: redemption.pawn_id,
-        action_url: createNotificationAction(`/pawns/${redemption.pawn_id}`, ['owner', 'agent']),
+        action_url: createNotificationAction(`/pawns/${redemption.pawn_id}`, [...getNotificationRecipientsForFundOwner(pawn?.fund_owner || 'tony')]),
       })
       await pingPushDispatch()
       showToast({ tone: 'success', title: 'ยืนยันสำเร็จ', message: 'ไถ่ถอนเรียบร้อยแล้ว' })

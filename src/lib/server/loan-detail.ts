@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/server/admin'
 export type LoanRow = {
   id: string
   borrower_name: string
+  fund_owner: string
   principal: number
   remaining_principal: number
   interest_rate: number
@@ -29,7 +30,7 @@ export async function fetchLoanDetail(id: string): Promise<LoanDetailData> {
 
   const { data: loan, error: loanError } = await supabase
     .from('loans')
-    .select('id, borrower_name, principal, remaining_principal, interest_rate, notes, status')
+    .select('id, borrower_name, fund_owner, principal, remaining_principal, interest_rate, notes, status')
     .eq('id', id)
     .maybeSingle()
 

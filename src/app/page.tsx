@@ -1,7 +1,9 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { canViewAllFunds, FUND_OWNER_BADGES, getDefaultFundScope } from '@/lib/fund-owner'
 import { getSession, type AppUser } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
@@ -33,8 +35,6 @@ type DashboardPayload = {
   user: AppUser
 }
 
-type DashboardCache = DashboardPayload
-
 export default function Dashboard() {
   const router = useRouter()
   const [user, setUser] = useState<AppUser | null>(() => getSession())
@@ -47,25 +47,41 @@ export default function Dashboard() {
   const [pendingPawns, setPendingPawns] = useState<PendingPawn[]>([])
   const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
   const [loading, setLoading] = useState(true)
+  const [ownerScope, setOwnerScope] = useState<'all' | 'tony' | 'louise' | 'phat'>(() => {
+    const session = getSession()
+    return getDefaultFundScope(session)
+  })
 
   useEffect(() => {
-    hydrateFromCache()
-    void loadDashboard()
+    const session = getSession()
+    if (session) {
+      setUser(session)
+      setOwnerScope(getDefaultFundScope(session))
+    }
+  }, [])
+
+  useEffect(() => {
+    hydrateFromCache(ownerScope)
+    void loadDashboard(ownerScope)
     router.prefetch('/pawns')
     router.prefetch('/loans')
     router.prefetch('/report')
     router.prefetch('/settings')
     router.prefetch('/pawn/new')
     router.prefetch('/loans/new')
-  }, [router])
+  }, [ownerScope, router])
 
-  function hydrateFromCache() {
+  function getCacheKey(scope: string) {
+    return `dashboard:home:${scope}`
+  }
+
+  function hydrateFromCache(scope: string) {
     if (typeof window === 'undefined') return
 
     try {
-      const raw = window.sessionStorage.getItem('dashboard:home')
+      const raw = window.sessionStorage.getItem(getCacheKey(scope))
       if (!raw) return
-      const cached = JSON.parse(raw) as DashboardCache
+      const cached = JSON.parse(raw) as DashboardPayload
       setBudget(Number(cached.budget || 0))
       setActivePawns(Number(cached.activePawns || 0))
       setActiveAmount(Number(cached.activeAmount || 0))
@@ -81,9 +97,9 @@ export default function Dashboard() {
     }
   }
 
-  async function loadDashboard() {
+  async function loadDashboard(scope: string) {
     try {
-      const response = await fetch('/api/dashboard', { cache: 'no-store' })
+      const response = await fetch(`/api/dashboard?owner_scope=${encodeURIComponent(scope)}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload?.error || 'โหลดข้อมูลหน้าแรกไม่สำเร็จ')
@@ -100,7 +116,7 @@ export default function Dashboard() {
       setPendingRedeems(data.pendingRedeems || [])
       setUser(data.user || getSession())
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('dashboard:home', JSON.stringify(data))
+        window.sessionStorage.setItem(getCacheKey(scope), JSON.stringify(data))
       }
     } finally {
       setLoading(false)
@@ -112,6 +128,7 @@ export default function Dashboard() {
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
   const pendingCount = pendingPawns.length + pendingRedeems.length
+  const showScopeSwitch = canViewAllFunds(user)
 
   if (loading) {
     return (
@@ -130,7 +147,7 @@ export default function Dashboard() {
             <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>ห่านทองคำ</div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-            สวัสดี {user?.role === 'owner' ? 'โทนี่' : 'เจ้หลุยส์'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+            สวัสดี {user?.display_name || 'ผู้ใช้'} · {new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -141,7 +158,23 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {showScopeSwitch && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          {([
+            [user?.user_key || 'tony', 'ของฉัน'],
+            ['all', 'ทั้งหมด'],
+          ] as const).map(([value, label]) => (
+            <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="panel-gold" style={{ borderRadius: 22, padding: 22, marginBottom: 14 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+          {ownerScope === 'all' ? 'ภาพรวมทุกพอร์ต' : FUND_OWNER_BADGES[ownerScope]}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>เงินลงทุนคงเหลือ</div>
@@ -157,9 +190,9 @@ export default function Dashboard() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           {[
-            { label: 'ตั๋วใช้งาน', value: `${activePawns} ใบ`, href: '/pawns?filter=active' },
-            { label: 'เงินกู้คงอยู่', value: `${activeLoans} ราย`, href: '/loans' },
-            { label: 'ผลตอบแทนต่อปี', value: `${roi}%`, href: '/report' },
+            { label: 'ตั๋วใช้งาน', value: `${activePawns} ใบ`, href: `/pawns?filter=active&owner_scope=${ownerScope}` },
+            { label: 'เงินกู้คงอยู่', value: `${activeLoans} ราย`, href: `/loans?filter=active&owner_scope=${ownerScope}` },
+            { label: 'ผลตอบแทนต่อปี', value: `${roi}%`, href: `/report?owner_scope=${ownerScope}` },
           ].map((item) => (
             <Link
               key={item.label}
@@ -187,7 +220,7 @@ export default function Dashboard() {
           <Link href="/pawn/new" className="btn-primary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, textDecoration: 'none' }}>
             🪺 รับจำนำ
           </Link>
-          <Link href="/pawns" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)', textDecoration: 'none' }}>
+          <Link href={`/pawns?owner_scope=${ownerScope}`} className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)', textDecoration: 'none' }}>
             🔍 ค้นหาตั๋ว
           </Link>
         </div>
@@ -199,7 +232,7 @@ export default function Dashboard() {
           <Link href="/loans/new" className="btn-primary" style={{ fontSize: 15, padding: '16px 12px', textDecoration: 'none' }}>
             🌱 ปล่อยกู้ใหม่
           </Link>
-          <Link href="/loans" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', textDecoration: 'none' }}>
+          <Link href={`/loans?owner_scope=${ownerScope}`} className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', textDecoration: 'none' }}>
             🍊 ดูสินเชื่อ
           </Link>
         </div>
@@ -207,7 +240,7 @@ export default function Dashboard() {
 
       <div className="section-label">รายงาน</div>
       <div className="card" style={{ marginBottom: 14, padding: 16 }}>
-        <Link href="/report" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', width: '100%', textDecoration: 'none' }}>
+        <Link href={`/report?owner_scope=${ownerScope}`} className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', width: '100%', textDecoration: 'none' }}>
           📊 ดูรายงาน
         </Link>
       </div>

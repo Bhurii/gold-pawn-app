@@ -11,6 +11,7 @@ export type LinkPawn = {
 export type PawnDetailRow = {
   id: string
   ticket_no: string
+  fund_owner: string
   pawn_date: string
   amount: number
   status: string
@@ -59,7 +60,7 @@ export async function fetchPawnDetail(id: string): Promise<PawnDetailData> {
 
   const { data: pawn, error: pawnError } = await supabase
     .from('pawns')
-    .select('id, ticket_no, pawn_date, amount, status, tx_status, notes, pawn_slip_url, renewed_from_id, renewal_principal_paid, renewal_interest')
+    .select('id, ticket_no, fund_owner, pawn_date, amount, status, tx_status, notes, pawn_slip_url, renewed_from_id, renewal_principal_paid, renewal_interest')
     .eq('id', id)
     .maybeSingle()
 

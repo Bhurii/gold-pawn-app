@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { supabase } from '@/lib/supabase'
@@ -15,6 +16,7 @@ type PawnRow = {
   ticket_no: string
   pawn_date: string
   amount: number
+  fund_owner?: FundOwnerKey
 }
 
 function InterestContent() {
@@ -102,7 +104,7 @@ function InterestContent() {
         type: 'interest_paid',
         message: `ตัดดอกตั๋ว #${selected.ticket_no} ฿${amount.toLocaleString('th-TH')}`,
         pawn_id: selected.id,
-        action_url: createNotificationAction(`/pawns/${selected.id}`, ['owner']),
+        action_url: createNotificationAction(`/pawns/${selected.id}`, [...getNotificationRecipientsForFundOwner(selected.fund_owner || 'tony')]),
       })
       await pingPushDispatch()
 

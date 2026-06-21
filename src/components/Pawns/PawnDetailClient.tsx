@@ -6,6 +6,7 @@ import PawnChecklist from '@/components/PawnChecklist'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { uploadSlip } from '@/lib/slip-storage'
 import { supabase } from '@/lib/supabase'
@@ -22,7 +23,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
   const router = useRouter()
   const { showToast } = useToast()
   const user = getSession()
-  const isOwner = user?.role === 'owner'
+  const canManageTransfer = user?.role === 'owner' || user?.role === 'agent'
   const [pawn, setPawn] = useState<PawnDetailRow | null>(initialData.pawn)
   const [interests, setInterests] = useState<InterestRow[]>(initialData.interests)
   const [redemption, setRedemption] = useState<RedemptionRow | null>(initialData.redemption)
@@ -187,7 +188,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
         type: 'transfer_confirmed',
         message: `อัปสลิปโอนเงินแล้ว ตั๋ว #${pawn.ticket_no} ฿${transferMeta.amount.toLocaleString('th-TH')}`,
         pawn_id: String(pawnId),
-        action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
+        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
       })
       await pingPushDispatch()
       await loadData()
@@ -209,7 +210,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
       type: 'bypass_cash',
       message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(pawnId),
-      action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
+      action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
     })
     await pingPushDispatch()
     await loadData()
@@ -227,7 +228,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
       type: 'bypass_prepaid',
       message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(pawnId),
-      action_url: createNotificationAction(`/pawns/${pawnId}`, ['owner']),
+      action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
     })
     await pingPushDispatch()
     await loadData()
@@ -313,7 +314,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
         onBypassPrepaid={handleBypassPrepaid}
         uploadingPawnSlip={uploadingPawnSlip}
         uploadingDocKey={uploadingDocKey}
-        isOwner={isOwner}
+        isOwner={canManageTransfer}
       />
 
       {pawn.status === 'active' && pawn.tx_status === 'active' && (

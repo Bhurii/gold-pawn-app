@@ -3,6 +3,7 @@ import { hashPin, isHashedPin, verifyPin } from '@/lib/server/pin'
 
 const OWNER_PIN_TYPE = 'owner_pin_config'
 const AGENT_PIN_TYPE = 'agent_pin_config'
+const PHAT_PIN_TYPE = 'phat_pin_config'
 
 type OwnerPinRecord = {
   hash?: string
@@ -97,11 +98,13 @@ export async function ensureSettingsRow() {
 export async function loadSettingsState() {
   const settings = await readSettingsRow()
   const agentRecord = await loadPinRecord(AGENT_PIN_TYPE)
+  const phatRecord = await loadPinRecord(PHAT_PIN_TYPE)
 
   return {
     id: settings?.id || '',
     invest_budget: Number(settings?.invest_budget || 0),
     hasAgentPin: Boolean(agentRecord?.record?.hash || agentRecord?.record?.pin || settings?.agent_pin_hash || settings?.agent_pin),
+    hasPhatPin: Boolean(phatRecord?.record?.hash || phatRecord?.record?.pin),
   }
 }
 
@@ -177,6 +180,16 @@ export async function verifyOwnerPin(pin: string) {
   return verifyPin(stored, pin)
 }
 
+export async function savePhatPin(pin: string) {
+  await savePinRecord(PHAT_PIN_TYPE, hashPin(pin))
+}
+
+export async function verifyPhatPin(pin: string) {
+  const record = await loadPinRecord(PHAT_PIN_TYPE)
+  const stored = record?.record?.hash || record?.record?.pin
+  return verifyPin(stored, pin)
+}
+
 export async function maybeUpgradeLegacyPins() {
   const supabase = createAdminClient()
   const settings = await ensureSettingsRow()
@@ -220,5 +233,19 @@ export async function maybeUpgradeLegacyPins() {
         is_read: true,
       })
       .eq('id', agent.id)
+  }
+
+  const phat = await loadPinRecord(PHAT_PIN_TYPE)
+  if (phat?.id && phat.record.pin && !phat.record.hash) {
+    await supabase
+      .from('notifications')
+      .update({
+        message: JSON.stringify({
+          hash: hashPin(phat.record.pin),
+          updatedAt: new Date().toISOString(),
+        }),
+        is_read: true,
+      })
+      .eq('id', phat.id)
   }
 }

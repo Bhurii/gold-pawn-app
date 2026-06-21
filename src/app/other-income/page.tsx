@@ -59,7 +59,7 @@ export default function OtherIncome() {
       await supabase.from('notifications').insert({
         type: 'other_income_added',
         message: `มีรายได้ใหม่ ${form.source} ฿${amount.toLocaleString('th-TH')}`,
-        action_url: createNotificationAction('/other-income', ['owner']),
+        action_url: createNotificationAction('/other-income', ['all']),
       })
       await pingPushDispatch()
 

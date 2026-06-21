@@ -1,4 +1,7 @@
-export type NotificationRecipient = 'owner' | 'agent' | 'all'
+import type { FundOwnerKey } from '@/lib/fund-owner'
+import type { SessionUser } from '@/lib/server/app-session'
+
+export type NotificationRecipient = FundOwnerKey | 'all'
 
 const RECIPIENTS_PARAM = 'notify_to'
 
@@ -13,7 +16,10 @@ export function createNotificationAction(actionUrl: string, recipients: Notifica
   return `${url.pathname}${url.search}${url.hash}`
 }
 
-export function parseNotificationAction(actionUrl?: string | null) {
+export function parseNotificationAction(actionUrl?: string | null): {
+  url: string
+  recipients: NotificationRecipient[]
+} {
   if (!actionUrl) {
     return {
       url: '/',
@@ -25,19 +31,19 @@ export function parseNotificationAction(actionUrl?: string | null) {
   const recipients = (url.searchParams.get(RECIPIENTS_PARAM) || 'all')
     .split(',')
     .map((value) => value.trim())
-    .filter((value): value is NotificationRecipient => value === 'owner' || value === 'agent' || value === 'all')
+    .filter((value): value is NotificationRecipient => value === 'all' || value === 'tony' || value === 'louise' || value === 'phat')
 
   url.searchParams.delete(RECIPIENTS_PARAM)
 
   return {
     url: `${url.pathname}${url.search}${url.hash}` || '/',
-    recipients: (recipients.length > 0 ? recipients : ['all']) as NotificationRecipient[],
+    recipients: recipients.length > 0 ? recipients : ['all'],
   }
 }
 
 export function canReceiveNotification(
   recipients: NotificationRecipient[],
-  role?: 'owner' | 'agent' | null,
+  user?: Pick<SessionUser, 'user_key'> | null,
 ) {
-  return recipients.includes('all') || (!!role && recipients.includes(role))
+  return recipients.includes('all') || (!!user?.user_key && recipients.includes(user.user_key))
 }

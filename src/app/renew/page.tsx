@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { uploadSlip } from '@/lib/slip-storage'
@@ -17,6 +18,7 @@ type PawnRow = {
   pawn_date: string
   amount: number
   notes?: string
+  fund_owner?: FundOwnerKey
 }
 
 type OcrTicketData = {
@@ -69,7 +71,7 @@ function RenewContent() {
   }, [pawnIdFromUrl])
 
   async function loadPawn(id: string) {
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes').eq('id', id).maybeSingle()
+    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes, fund_owner').eq('id', id).maybeSingle()
     if (data) setPawn(data as PawnRow)
     setLoading(false)
   }
@@ -196,6 +198,7 @@ function RenewContent() {
         ticket_no: form.new_ticket_no,
         pawn_date: newDate,
         amount: newAmount,
+        fund_owner: pawn.fund_owner || 'tony',
         pawn_slip_url: newTicketUrl,
         status: 'active',
         tx_status: 'active',
@@ -237,7 +240,7 @@ function RenewContent() {
         type: 'renewed',
         message: `ลดต้นตั๋ว #${pawn.ticket_no} -> ตั๋วใหม่ #${form.new_ticket_no} ยอด ฿${fmt(newAmount)}`,
         pawn_id: newPawn.id,
-        action_url: createNotificationAction(`/pawns/${newPawn.id}`, ['owner']),
+        action_url: createNotificationAction(`/pawns/${newPawn.id}`, [...getNotificationRecipientsForFundOwner(pawn.fund_owner || 'tony')]),
       })
       await pingPushDispatch()
 

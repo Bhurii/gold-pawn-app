@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readSessionFromRequest } from '@/lib/server/app-session'
-import { hasOwnerPinRecord, loadSettingsState, saveAgentPin, saveBudget, saveOwnerPin } from '@/lib/server/settings-store'
+import { hasOwnerPinRecord, loadSettingsState, saveAgentPin, saveBudget, saveOwnerPin, savePhatPin } from '@/lib/server/settings-store'
 import { deleteMemoryCache, getOrSetMemoryCache } from '@/lib/server/memory-cache'
 
 export const runtime = 'nodejs'
@@ -19,10 +19,12 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     role: user.role,
+    userKey: user.user_key,
     isAdmin: user.role === 'owner',
     budget: user.role === 'owner' ? settings.invest_budget : null,
     hasOwnerPin,
     hasAgentPin: settings.hasAgentPin,
+    hasPhatPin: settings.hasPhatPin,
   })
 }
 
@@ -57,6 +59,16 @@ export async function PATCH(request: NextRequest) {
     await saveAgentPin(body.agentPin)
     deleteMemoryCache('api:settings:state')
     updates.push('agentPin')
+  }
+
+  if (typeof body?.phatPin === 'string') {
+    if (user.role !== 'owner' && user.role !== 'agent') return unauthorized()
+    if (!/^\d{6}$/.test(body.phatPin)) {
+      return NextResponse.json({ error: 'PIN เจ้ภัสต้องเป็นตัวเลข 6 หลัก' }, { status: 400 })
+    }
+    await savePhatPin(body.phatPin)
+    deleteMemoryCache('api:settings:state')
+    updates.push('phatPin')
   }
 
   return NextResponse.json({ ok: true, updates })

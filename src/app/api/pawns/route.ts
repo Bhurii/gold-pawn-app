@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/admin'
+import { applyFundScopeFilter, resolveFundScope } from '@/lib/server/fund-access'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { getOrSetMemoryCache } from '@/lib/server/memory-cache'
 
@@ -28,8 +29,9 @@ export async function GET(request: NextRequest) {
   const search = (url.searchParams.get('search') || '').trim()
   const id = (url.searchParams.get('id') || '').trim()
   const txStatus = (url.searchParams.get('tx_status') || '').trim()
+  const ownerScope = resolveFundScope(user, url.searchParams.get('owner_scope'))
 
-  const cacheKey = ['api:pawns', filter, search || '__empty__', id || '__empty__', txStatus || '__empty__'].join(':')
+  const cacheKey = ['api:pawns', ownerScope, filter, search || '__empty__', id || '__empty__', txStatus || '__empty__'].join(':')
 
   try {
     const data = await getOrSetMemoryCache(cacheKey, search ? 5000 : 15000, async () => {
@@ -37,8 +39,10 @@ export async function GET(request: NextRequest) {
 
       let query = supabase
         .from('pawns')
-        .select('id, ticket_no, pawn_date, amount, status, tx_status, notes, renewed_from_id, renewal_principal_paid, created_at')
+        .select('id, ticket_no, fund_owner, pawn_date, amount, status, tx_status, notes, renewed_from_id, renewal_principal_paid, created_at')
         .order('created_at', { ascending: false })
+
+      query = applyFundScopeFilter(query, ownerScope)
 
       if (id) {
         query = query.eq('id', id)

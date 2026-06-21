@@ -1,7 +1,9 @@
 import { sign } from 'node:crypto'
 import { canReceiveNotification, parseNotificationAction } from '@/lib/notification-meta'
+import type { FundOwnerKey } from '@/lib/fund-owner'
 import { VAPID_PUBLIC_KEY } from '@/lib/push-config'
 import { createAdminClient } from '@/lib/server/admin'
+import type { SessionUser } from '@/lib/server/app-session'
 import { VAPID_PRIVATE_KEY_PEM, VAPID_SUBJECT } from '@/lib/push-server-secret'
 
 type NotificationRow = {
@@ -44,7 +46,8 @@ type StoredSubscription = {
   }
   enabled?: boolean
   updatedAt?: string
-  role?: 'owner' | 'agent'
+  role?: 'owner' | 'agent' | 'viewer'
+  userKey?: FundOwnerKey
   userId?: string
   displayName?: string
 }
@@ -179,36 +182,7 @@ export async function unsubscribePushSubscription(endpoint: string) {
 async function getSubscriptionRole(endpoint?: string | null) {
   if (!endpoint) return null
   const subscription = (await listSubscriptions()).find((row) => row.endpoint === endpoint && row.enabled)
-  return subscription?.role || null
-}
-
-function canRoleReceiveType(type: string, role?: 'owner' | 'agent' | null) {
-  if (!role) return true
-
-  const ownerOnlyTypes = new Set([
-    'pawn_created',
-    'interest_paid',
-    'renewed',
-    'topup',
-    'transfer_confirmed',
-    'bypass_cash',
-    'bypass_prepaid',
-    'loan_created',
-    'loan_interest_paid',
-    'loan_principal_paid',
-    'loan_closed',
-    'other_income_added',
-  ])
-
-  const agentAndOwnerTypes = new Set([
-    'redeem_confirmed',
-    'push_test',
-  ])
-
-  if (ownerOnlyTypes.has(type)) return role === 'owner'
-  if (agentAndOwnerTypes.has(type)) return role === 'owner' || role === 'agent'
-  if (type === 'redeem_pending') return role === 'owner'
-  return true
+  return subscription?.userKey || null
 }
 
 function getNotificationTitle(type: string) {
@@ -251,7 +225,7 @@ async function resolveNotificationUrl(supabase: ReturnType<typeof createAdminCli
   return '/'
 }
 
-export async function getNotificationFeed(role?: 'owner' | 'agent' | null, limit = 12) {
+export async function getNotificationFeed(user?: SessionUser | null, limit = 12) {
   const supabase = supabaseServer()
   const { data } = await supabase
     .from('notifications')
@@ -261,9 +235,8 @@ export async function getNotificationFeed(role?: 'owner' | 'agent' | null, limit
 
   const rows = ((data as NotificationRow[] | null) || []).filter((item) => {
     if (INTERNAL_NOTIFICATION_TYPES.has(item.type)) return false
-    if (!canRoleReceiveType(item.type, role)) return false
     const meta = parseNotificationAction(item.action_url)
-    return canReceiveNotification(meta.recipients, role)
+    return canReceiveNotification(meta.recipients, user)
   })
 
   return Promise.all(
@@ -278,25 +251,31 @@ export async function getNotificationFeed(role?: 'owner' | 'agent' | null, limit
   )
 }
 
-export async function getPendingActionFeed(role?: 'owner' | 'agent' | null) {
-  if (role !== 'owner') return []
+export async function getPendingActionFeed(user?: SessionUser | null) {
+  if (!user || user.user_key === 'phat') return []
 
   const supabase = supabaseServer()
-  const [{ data: pendingPawns }, { data: pendingRedeems }] = await Promise.all([
-    supabase
-      .from('pawns')
-      .select('id, ticket_no, amount')
-      .eq('status', 'active')
-      .eq('tx_status', 'pending_transfer')
-      .order('created_at', { ascending: false })
-      .limit(10),
-    supabase
-      .from('redemptions')
-      .select('id, pawn_id, pawns(ticket_no, amount)')
-      .eq('status', 'pending_confirm')
-      .order('created_at', { ascending: false })
-      .limit(10),
-  ])
+  const pawnQuery = supabase
+    .from('pawns')
+    .select('id, ticket_no, amount, fund_owner')
+    .eq('status', 'active')
+    .eq('tx_status', 'pending_transfer')
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  const redeemQuery = supabase
+    .from('redemptions')
+    .select('id, pawn_id, pawns(ticket_no, amount, fund_owner)')
+    .eq('status', 'pending_confirm')
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  if (user.user_key === 'tony') {
+    pawnQuery.eq('fund_owner', 'tony')
+    redeemQuery.eq('pawns.fund_owner', 'tony')
+  }
+
+  const [{ data: pendingPawns }, { data: pendingRedeems }] = await Promise.all([pawnQuery, redeemQuery])
 
   const pawnItems: PendingActionItem[] = ((pendingPawns as Array<{ id: string; ticket_no: string; amount: number }> | null) || []).map((pawn) => ({
     id: `pending_transfer_${pawn.id}`,
@@ -321,8 +300,8 @@ export async function getPendingActionFeed(role?: 'owner' | 'agent' | null) {
 }
 
 export async function getLatestPushPayload(endpoint?: string | null) {
-  const role = await getSubscriptionRole(endpoint)
-  const feed = await getNotificationFeed(role, 20)
+  const userKey = await getSubscriptionRole(endpoint)
+  const feed = await getNotificationFeed(userKey ? { id: userKey, role: userKey === 'louise' ? 'agent' : userKey === 'tony' ? 'owner' : 'viewer', user_key: userKey, display_name: '', auth_type: 'pin' } : null, 20)
   const latest = feed[0]
 
   if (!latest) {

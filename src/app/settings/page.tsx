@@ -6,13 +6,16 @@ import { useToast } from '@/components/ToastProvider'
 import { canAccessSettings, clearSession, fetchSession, getSession, isAdmin, type AppUser } from '@/lib/auth'
 import BottomNav from '@/components/BottomNav'
 import PushToggleCard from '@/components/PushToggleCard'
+import { FUND_OWNER_LABELS, type FundOwnerKey } from '@/lib/fund-owner'
 
 type SettingsPayload = {
-  role: 'owner' | 'agent'
+  role: 'owner' | 'agent' | 'viewer'
+  userKey: FundOwnerKey
   isAdmin: boolean
   budget: number | null
   hasOwnerPin: boolean
   hasAgentPin: boolean
+  hasPhatPin: boolean
 }
 
 type SettingsCache = {
@@ -29,15 +32,19 @@ export default function Settings() {
   const [budget, setBudget] = useState('')
   const [ownerPin, setOwnerPin] = useState('')
   const [agentPin, setAgentPin] = useState('')
+  const [phatPin, setPhatPin] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingOwnerPin, setSavingOwnerPin] = useState(false)
   const [savingAgentPin, setSavingAgentPin] = useState(false)
+  const [savingPhatPin, setSavingPhatPin] = useState(false)
   const [saved, setSaved] = useState(false)
   const [savedOwnerPin, setSavedOwnerPin] = useState(false)
   const [savedAgentPin, setSavedAgentPin] = useState(false)
+  const [savedPhatPin, setSavedPhatPin] = useState(false)
 
   const admin = useMemo(() => isAdmin(user), [user])
+  const canManagePhat = user?.role === 'owner' || user?.role === 'agent'
 
   useEffect(() => {
     let active = true
@@ -177,6 +184,25 @@ export default function Settings() {
     }
   }
 
+  async function handleSavePhatPin() {
+    if (phatPin.length !== 6 || !/^\d+$/.test(phatPin)) {
+      showToast({ tone: 'error', title: 'PIN ไม่ถูกต้อง', message: 'PIN เจ้ภัสต้องเป็นตัวเลข 6 หลัก' })
+      return
+    }
+
+    setSavingPhatPin(true)
+    try {
+      await updateSettings({ phatPin })
+      setPhatPin('')
+      setSavedPhatPin(true)
+      window.setTimeout(() => setSavedPhatPin(false), 2000)
+    } catch (error) {
+      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: error instanceof Error ? error.message : 'บันทึก PIN เจ้ภัสไม่สำเร็จ' })
+    } finally {
+      setSavingPhatPin(false)
+    }
+  }
+
   async function handleLogout() {
     await clearSession()
     router.replace('/login')
@@ -191,7 +217,7 @@ export default function Settings() {
       <div style={{ padding: '56px 0 24px' }}>
         <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--gold)' }}>ตั้งค่า</div>
         <div style={{ fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
-          เข้าระบบเป็น: <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{admin ? 'โทนี่ (แอดมิน)' : 'เจ้หลุยส์'}</span>
+          เข้าระบบเป็น: <span style={{ color: 'var(--gold)', fontWeight: 600 }}>{user ? FUND_OWNER_LABELS[user.user_key] : '-'}</span>
         </div>
       </div>
 
@@ -235,6 +261,22 @@ export default function Settings() {
           {savedAgentPin ? 'บันทึก PIN แล้ว' : savingAgentPin ? 'กำลังบันทึก...' : admin ? 'ตั้ง PIN เจ้หลุยส์' : 'บันทึก PIN ของฉัน'}
         </button>
       </div>
+
+      {canManagePhat && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>PIN เจ้ภัส</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 16 }}>
+            ตั้ง PIN 6 หลักสำหรับเข้าใช้งานเฉพาะข้อมูลของเจ้ภัส
+          </div>
+          <input className="input-field" type="password" inputMode="numeric" placeholder="ตัวเลข 6 หลัก" value={phatPin} onChange={(event) => setPhatPin(event.target.value.replace(/\D/g, '').slice(0, 6))} style={{ marginBottom: 12 }} />
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+            {settings?.hasPhatPin ? 'ตั้งไว้แล้ว ระบบจะไม่แสดง PIN เดิมเพื่อความปลอดภัย' : 'ยังไม่ได้ตั้ง PIN'}
+          </div>
+          <button className="btn-primary" onClick={() => void handleSavePhatPin()} disabled={savingPhatPin} style={{ fontSize: 16 }}>
+            {savedPhatPin ? 'บันทึก PIN แล้ว' : savingPhatPin ? 'กำลังบันทึก...' : 'ตั้ง PIN เจ้ภัส'}
+          </button>
+        </div>
+      )}
 
       <PushToggleCard />
 

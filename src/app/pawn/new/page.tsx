@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { getSession } from '@/lib/auth'
+import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
@@ -17,11 +19,15 @@ type ExistingPawn = {
   amount: number
   status: string
   tx_status: string
+  fund_owner?: FundOwnerKey
 }
 
 export default function NewPawn() {
   const router = useRouter()
   const { showToast } = useToast()
+  const session = getSession()
+  const availableOwners = getAccessibleFundOwners(session)
+  const [fundOwner, setFundOwner] = useState<FundOwnerKey>(getDefaultFundOwner(session))
   const [image, setImage] = useState<File | null>(null)
   const [preview, setPreview] = useState('')
   const [scanning, setScanning] = useState(false)
@@ -104,7 +110,7 @@ export default function NewPawn() {
   async function checkExisting(ticketNo: string) {
     const { data } = await supabase
       .from('pawns')
-      .select('id, ticket_no, pawn_date, amount, status, tx_status')
+      .select('id, ticket_no, pawn_date, amount, status, tx_status, fund_owner')
       .eq('ticket_no', ticketNo)
       .maybeSingle()
     setExistingPawn((data as ExistingPawn | null) || null)
@@ -134,6 +140,7 @@ export default function NewPawn() {
         ticket_no: form.ticket_no,
         pawn_date: pawnDate,
         amount,
+        fund_owner: fundOwner,
         pawn_slip_url: slipUrl,
         status: 'active',
         tx_status: 'pending_transfer',
@@ -142,9 +149,9 @@ export default function NewPawn() {
 
       await supabase.from('notifications').insert({
         type: 'pawn_created',
-        message: `มีรายการรับจำนำใหม่ ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} รอโอนเงิน`,
+        message: `มีรายการรับจำนำใหม่ ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]} รอโอนเงิน`,
         pawn_id: pawn.id,
-        action_url: createNotificationAction(`/pawns/${pawn.id}`, ['owner']),
+        action_url: createNotificationAction(`/pawns/${pawn.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
       })
       await pingPushDispatch()
 
@@ -170,8 +177,21 @@ export default function NewPawn() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>Step 1/2</div>
       </div>
       <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
-        อัปตั๋ว → AI อ่านข้อมูล → รอโอนเงิน
+        อัปตั๋ว {'->'} AI อ่านข้อมูล {'->'} รอโอนเงิน
       </div>
+
+      {availableOwners.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>ทุนของใคร</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {availableOwners.map((owner) => (
+              <button key={owner} type="button" className="filter-chip" data-active={fundOwner === owner} onClick={() => setFundOwner(owner)}>
+                {FUND_OWNER_BADGES[owner]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {preview ? (
         <div style={{ marginBottom: 16, position: 'relative' }}>
@@ -204,7 +224,8 @@ export default function NewPawn() {
         <div style={{ background: 'rgba(242,201,76,0.1)', border: '1px solid rgba(242,201,76,0.4)', borderRadius: 16, padding: 18, marginBottom: 16 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)', marginBottom: 10 }}>ตั๋วนี้มีในระบบแล้ว</div>
           <div style={{ fontSize: 15, marginBottom: 4 }}>ตั๋ว #{existingPawn.ticket_no} · ฿{fmt(existingPawn.amount)}</div>
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>{toThaiDateShort(existingPawn.pawn_date)}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>{toThaiDateShort(existingPawn.pawn_date)}</div>
+          {existingPawn.fund_owner && <div style={{ fontSize: 13, color: 'var(--gold-light)', marginBottom: 16 }}>{FUND_OWNER_BADGES[existingPawn.fund_owner]}</div>}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             <button onClick={() => router.push(`/pawns/${existingPawn.id}`)} style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: 'var(--gold)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               ดูข้อมูล
@@ -256,7 +277,7 @@ export default function NewPawn() {
           </div>
           <div style={{ marginTop: 24 }}>
             <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-              {saving ? 'กำลังบันทึก...' : 'บันทึกรับจำนำ'}
+              {saving ? 'กำลังบันทึก...' : `บันทึกรับจำนำ ${FUND_OWNER_LABELS[fundOwner]}`}
             </button>
           </div>
         </>

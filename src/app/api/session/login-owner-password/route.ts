@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
     const user = {
       id: data.user.id,
       role: 'owner' as const,
+      user_key: 'tony' as const,
       display_name: 'โทนี่',
       auth_type: 'email' as const,
     }

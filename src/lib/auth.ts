@@ -1,8 +1,11 @@
-export type UserRole = 'owner' | 'agent' | null
+import type { FundOwnerKey, UserRole } from '@/lib/fund-owner'
+
+export type UserRoleOrNull = UserRole | null
 
 export interface AppUser {
   id: string
-  role: UserRole
+  role: UserRoleOrNull
+  user_key: FundOwnerKey
   display_name: string
   auth_type: 'email' | 'pin'
 }
@@ -15,7 +18,8 @@ function isAppUser(value: unknown): value is AppUser {
   if (!value || typeof value !== 'object') return false
   const user = value as Partial<AppUser>
   return typeof user.id === 'string'
-    && (user.role === 'owner' || user.role === 'agent')
+    && (user.role === 'owner' || user.role === 'agent' || user.role === 'viewer')
+    && (user.user_key === 'tony' || user.user_key === 'louise' || user.user_key === 'phat')
     && typeof user.display_name === 'string'
     && (user.auth_type === 'email' || user.auth_type === 'pin')
 }
@@ -140,6 +144,19 @@ export async function loginAgent(pin: string): Promise<{ user: AppUser | null, e
     const payload = await readJson<{ user: AppUser }>('/api/session/login-pin', {
       method: 'POST',
       body: JSON.stringify({ mode: 'agent', pin }),
+    })
+    setSession(payload.user)
+    return { user: payload.user, error: null }
+  } catch (error) {
+    return { user: null, error: error instanceof Error ? error.message : 'PIN ไม่ถูกต้อง' }
+  }
+}
+
+export async function loginPhat(pin: string): Promise<{ user: AppUser | null, error: string | null }> {
+  try {
+    const payload = await readJson<{ user: AppUser }>('/api/session/login-pin', {
+      method: 'POST',
+      body: JSON.stringify({ mode: 'viewer', pin }),
     })
     setSession(payload.user)
     return { user: payload.user, error: null }
