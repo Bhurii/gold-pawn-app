@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { hasOwnerPinRecord, loadSettingsState, saveAgentPin, saveBudget, saveOwnerPin } from '@/lib/server/settings-store'
+import { deleteMemoryCache, getOrSetMemoryCache } from '@/lib/server/memory-cache'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,8 +14,8 @@ export async function GET(request: NextRequest) {
   const user = readSessionFromRequest(request)
   if (!user) return unauthorized()
 
-  const settings = await loadSettingsState()
-  const hasOwnerPin = await hasOwnerPinRecord()
+  const settings = await getOrSetMemoryCache('api:settings:state', 30000, () => loadSettingsState())
+  const hasOwnerPin = await getOrSetMemoryCache('api:settings:owner-pin', 30000, () => hasOwnerPinRecord())
 
   return NextResponse.json({
     role: user.role,
@@ -35,6 +36,7 @@ export async function PATCH(request: NextRequest) {
   if (typeof body?.budget === 'number') {
     if (user.role !== 'owner') return unauthorized()
     await saveBudget(body.budget)
+    deleteMemoryCache('api:settings:state')
     updates.push('budget')
   }
 
@@ -44,6 +46,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'PIN โทนี่ต้องเป็นตัวเลข 6 หลัก' }, { status: 400 })
     }
     await saveOwnerPin(body.ownerPin)
+    deleteMemoryCache('api:settings:owner-pin')
     updates.push('ownerPin')
   }
 
@@ -52,6 +55,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'PIN เจ้หลุยส์ต้องเป็นตัวเลข 6 หลัก' }, { status: 400 })
     }
     await saveAgentPin(body.agentPin)
+    deleteMemoryCache('api:settings:state')
     updates.push('agentPin')
   }
 
