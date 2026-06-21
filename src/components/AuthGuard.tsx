@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { AppUser, clearSession, fetchSession, getSession } from '@/lib/auth'
+import { AppUser, clearSession, fetchSession, getSession, hasFreshSession } from '@/lib/auth'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [user, setUser] = useState<AppUser | null>(() => getSession())
-  const [checking, setChecking] = useState(true)
+  const [checking, setChecking] = useState(() => pathname !== '/login' && !getSession())
 
   useEffect(() => {
     let active = true
@@ -19,7 +19,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         return
       }
 
-      setChecking(true)
+      const localSession = getSession()
+      if (localSession) {
+        setUser(localSession)
+        setChecking(false)
+        if (hasFreshSession()) return
+      } else {
+        setChecking(true)
+      }
+
       const session = await fetchSession()
       if (!active) return
 

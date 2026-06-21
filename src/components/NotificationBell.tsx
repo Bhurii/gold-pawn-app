@@ -27,6 +27,15 @@ type PendingActionItem = {
   url: string
 }
 
+type NotificationCache = {
+  notifications: NotificationItem[]
+  pendingActions: PendingActionItem[]
+  savedAt: number
+}
+
+const CACHE_KEY = 'notification-bell:feed'
+const CACHE_TTL_MS = 30 * 1000
+
 function relativeTime(value: string) {
   const diffMs = Date.now() - new Date(value).getTime()
   const diffMin = Math.max(1, Math.round(diffMs / 60000))
@@ -61,24 +70,91 @@ export default function NotificationBell() {
   }, [])
 
   useEffect(() => {
-    void resolvePushState().then(setPushState)
+    const cacheStale = hydrateFromCache()
     setIosInstallNeeded(isIosDevice() && !isStandaloneMode())
-    void loadNotifications()
+
+    let staleTimer: ReturnType<typeof setTimeout> | null = null
+    if (cacheStale) {
+      staleTimer = globalThis.setTimeout(() => {
+        void loadNotifications(false)
+      }, 900)
+    }
+
+    const resolveState = () => {
+      void resolvePushState().then(setPushState)
+    }
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleId = window.requestIdleCallback(resolveState, { timeout: 1200 })
+      return () => {
+        if (staleTimer) globalThis.clearTimeout(staleTimer)
+        window.cancelIdleCallback(idleId)
+      }
+    }
+
+    const timer = globalThis.setTimeout(resolveState, 300)
+    return () => {
+      if (staleTimer) globalThis.clearTimeout(staleTimer)
+      globalThis.clearTimeout(timer)
+    }
   }, [])
 
   useEffect(() => {
     if (open) {
-      void loadNotifications()
+      void loadNotifications(true)
     }
   }, [open])
 
-  async function loadNotifications() {
+  function hydrateFromCache() {
+    if (typeof window === 'undefined') return true
+
+    try {
+      const raw = window.sessionStorage.getItem(CACHE_KEY)
+      if (!raw) return true
+      const cached = JSON.parse(raw) as NotificationCache
+      setNotifications(Array.isArray(cached.notifications) ? cached.notifications : [])
+      setPendingActions(Array.isArray(cached.pendingActions) ? cached.pendingActions : [])
+      return Date.now() - Number(cached.savedAt || 0) > CACHE_TTL_MS
+    } catch {
+      // Ignore invalid cache and refetch on demand.
+      return true
+    }
+  }
+
+  function saveCache(nextNotifications: NotificationItem[], nextPendingActions: PendingActionItem[]) {
+    if (typeof window === 'undefined') return
+    const payload: NotificationCache = {
+      notifications: nextNotifications,
+      pendingActions: nextPendingActions,
+      savedAt: Date.now(),
+    }
+    window.sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload))
+  }
+
+  async function loadNotifications(forceOpenRefresh = false) {
+    if (!forceOpenRefresh && typeof window !== 'undefined') {
+      try {
+        const raw = window.sessionStorage.getItem(CACHE_KEY)
+        if (raw) {
+          const cached = JSON.parse(raw) as NotificationCache
+          if (Date.now() - Number(cached.savedAt || 0) <= CACHE_TTL_MS) {
+            return
+          }
+        }
+      } catch {
+        // Ignore invalid cache and fetch fresh data.
+      }
+    }
+
     try {
       const response = await fetch('/api/notifications/recent', { cache: 'no-store' })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok) return
-      setNotifications(Array.isArray(payload.notifications) ? payload.notifications : [])
-      setPendingActions(Array.isArray(payload.pendingActions) ? payload.pendingActions : [])
+      const nextNotifications = Array.isArray(payload.notifications) ? payload.notifications : []
+      const nextPendingActions = Array.isArray(payload.pendingActions) ? payload.pendingActions : []
+      setNotifications(nextNotifications)
+      setPendingActions(nextPendingActions)
+      saveCache(nextNotifications, nextPendingActions)
     } catch {
       // best-effort
     }

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { fetchSession, getSession, type AppUser } from '@/lib/auth'
+import { getSession, type AppUser } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
 import NotificationBell from '@/components/NotificationBell'
@@ -83,9 +83,6 @@ export default function Dashboard() {
 
   async function loadDashboard() {
     try {
-      const session = await fetchSession()
-      if (session) setUser(session)
-
       const response = await fetch('/api/dashboard', { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
@@ -101,7 +98,7 @@ export default function Dashboard() {
       setMonthInterest(Number(data.monthInterest || 0))
       setPendingPawns(data.pendingPawns || [])
       setPendingRedeems(data.pendingRedeems || [])
-      setUser(data.user || session)
+      setUser(data.user || getSession())
       if (typeof window !== 'undefined') {
         window.sessionStorage.setItem('dashboard:home', JSON.stringify(data))
       }
@@ -164,14 +161,14 @@ export default function Dashboard() {
             { label: 'เงินกู้คงอยู่', value: `${activeLoans} ราย`, href: '/loans' },
             { label: 'ผลตอบแทนต่อปี', value: `${roi}%`, href: '/report' },
           ].map((item) => (
-            <div
+            <Link
               key={item.label}
-              onClick={() => router.push(item.href)}
-              style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 8px', textAlign: 'center', cursor: 'pointer' }}
+              href={item.href}
+              style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 14, padding: '12px 8px', textAlign: 'center', cursor: 'pointer', textDecoration: 'none', color: 'inherit' }}
             >
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>{item.value}</div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{item.label}</div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

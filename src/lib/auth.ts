@@ -8,6 +8,8 @@ export interface AppUser {
 }
 
 const SESSION_KEY = 'haantong_user'
+const SESSION_TS_KEY = 'haantong_user_ts'
+const DEFAULT_SESSION_FRESH_MS = 90 * 1000
 
 function isAppUser(value: unknown): value is AppUser {
   if (!value || typeof value !== 'object') return false
@@ -58,6 +60,7 @@ export function getSession(): AppUser | null {
 export function setSession(user: AppUser) {
   if (typeof window === 'undefined') return
   sessionStorage.setItem(SESSION_KEY, JSON.stringify(user))
+  sessionStorage.setItem(SESSION_TS_KEY, String(Date.now()))
 }
 
 export async function fetchSession(): Promise<AppUser | null> {
@@ -76,6 +79,20 @@ export async function fetchSession(): Promise<AppUser | null> {
 function clearSessionLocal() {
   if (typeof window === 'undefined') return
   sessionStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(SESSION_TS_KEY)
+}
+
+function getSessionTimestamp(): number {
+  if (typeof window === 'undefined') return 0
+  const raw = sessionStorage.getItem(SESSION_TS_KEY)
+  const parsed = Number(raw || 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function hasFreshSession(maxAgeMs = DEFAULT_SESSION_FRESH_MS) {
+  if (!getSession()) return false
+  const savedAt = getSessionTimestamp()
+  return savedAt > 0 && Date.now() - savedAt <= maxAgeMs
 }
 
 export async function clearSession() {
