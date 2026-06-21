@@ -1,15 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { pingPushDispatch } from '@/lib/push-client'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { supabase } from '@/lib/supabase'
-import { useToast } from '@/components/ToastProvider'
-import { toThaiDateLong, fmt } from '@/lib/utils'
-import { getSession } from '@/lib/auth'
+import { useParams, useRouter } from 'next/navigation'
 import PawnChecklist from '@/components/PawnChecklist'
+import { useToast } from '@/components/ToastProvider'
+import { getSession } from '@/lib/auth'
+import { createNotificationAction } from '@/lib/notification-meta'
+import { pingPushDispatch } from '@/lib/push-client'
 import { uploadSlip } from '@/lib/slip-storage'
+import { supabase } from '@/lib/supabase'
+import { fmt, toThaiDateLong } from '@/lib/utils'
 import { errorMessage } from '@/lib/validation'
 
 type LinkPawn = {
@@ -57,6 +57,15 @@ type TransferSlipRow = {
   created_at: string
 }
 
+type PawnDetailCache = {
+  pawn: PawnDetailRow | null
+  renewedFrom: LinkPawn | null
+  renewedTo: LinkPawn | null
+  interests: InterestRow[]
+  redemption: RedemptionRow | null
+  transferSlips: TransferSlipRow[]
+}
+
 export default function PawnDetail() {
   const router = useRouter()
   const { id } = useParams()
@@ -76,10 +85,40 @@ export default function PawnDetail() {
   const [uploadingDocKey, setUploadingDocKey] = useState('')
 
   useEffect(() => {
-    if (pawnId) {
-      void loadData()
-    }
+    if (!pawnId) return
+    hydrateFromCache()
+    void loadData()
   }, [pawnId])
+
+  function getCacheKey() {
+    return pawnId ? `pawn-detail:${pawnId}` : ''
+  }
+
+  function hydrateFromCache() {
+    const cacheKey = getCacheKey()
+    if (!cacheKey || typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey)
+      if (!raw) return
+      const cached = JSON.parse(raw) as PawnDetailCache
+      setPawn(cached.pawn || null)
+      setRenewedFrom(cached.renewedFrom || null)
+      setRenewedTo(cached.renewedTo || null)
+      setInterests(cached.interests || [])
+      setRedemption(cached.redemption || null)
+      setTransferSlips(cached.transferSlips || [])
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
+    }
+  }
+
+  function saveCache(nextCache: PawnDetailCache) {
+    const cacheKey = getCacheKey()
+    if (!cacheKey || typeof window === 'undefined') return
+    window.sessionStorage.setItem(cacheKey, JSON.stringify(nextCache))
+  }
 
   async function loadData() {
     if (!pawnId) return
@@ -90,12 +129,22 @@ export default function PawnDetail() {
         throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
       }
 
-      setPawn((payload?.pawn as PawnDetailRow | null) || null)
-      setRenewedFrom((payload?.renewedFrom as LinkPawn | null) || null)
-      setRenewedTo((payload?.renewedTo as LinkPawn | null) || null)
-      setInterests((payload?.interests as InterestRow[] | null) || [])
-      setRedemption((payload?.redemption as RedemptionRow | null) || null)
-      setTransferSlips((payload?.transferSlips as TransferSlipRow[] | null) || [])
+      const nextCache: PawnDetailCache = {
+        pawn: (payload?.pawn as PawnDetailRow | null) || null,
+        renewedFrom: (payload?.renewedFrom as LinkPawn | null) || null,
+        renewedTo: (payload?.renewedTo as LinkPawn | null) || null,
+        interests: (payload?.interests as InterestRow[] | null) || [],
+        redemption: (payload?.redemption as RedemptionRow | null) || null,
+        transferSlips: (payload?.transferSlips as TransferSlipRow[] | null) || [],
+      }
+
+      setPawn(nextCache.pawn)
+      setRenewedFrom(nextCache.renewedFrom)
+      setRenewedTo(nextCache.renewedTo)
+      setInterests(nextCache.interests)
+      setRedemption(nextCache.redemption)
+      setTransferSlips(nextCache.transferSlips)
+      saveCache(nextCache)
     } catch {
       setPawn(null)
       setRenewedFrom(null)
@@ -205,8 +254,8 @@ export default function PawnDetail() {
       await pingPushDispatch()
       await loadData()
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'ยืนยันการโอนเงินเรียบร้อยแล้ว' })
-    } catch (e) {
-      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
+    } catch (error) {
+      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(error) })
     } finally {
       setUploadingPawnSlip(false)
     }
@@ -248,44 +297,19 @@ export default function PawnDetail() {
     showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'บันทึกการฝากเงินล่วงหน้าเรียบร้อยแล้ว' })
   }
 
-  function UploadActionRow({
-    label,
-    busy,
-    onSelect,
-  }: {
-    label: string
-    busy: boolean
-    onSelect: (file: File) => void
-  }) {
-    return (
-      <div style={{ padding: '12px 0', borderBottom: '0.5px solid var(--border)' }}>
-        <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>{label}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '12px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
-            <input type="file" accept="image/*" capture="environment" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) onSelect(file) }} style={{ display: 'none' }} />
-            <span style={{ fontSize: 22 }}>📷</span>
-            <span style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 600 }}>{busy ? 'กำลังอัป...' : 'ถ่ายรูป'}</span>
-          </label>
-          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, border: '1.5px dashed var(--border-hover)', borderRadius: 12, padding: '12px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.7 : 1 }}>
-            <input type="file" accept="image/*" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) onSelect(file) }} style={{ display: 'none' }} />
-            <span style={{ fontSize: 22 }}>🖼️</span>
-            <span style={{ color: 'var(--gold)', fontSize: 12, fontWeight: 600 }}>เลือกจากคลัง</span>
-          </label>
-        </div>
-      </div>
-    )
+  if (loading) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
   }
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
-  if (!pawn) return <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>ไม่พบข้อมูล</div>
+  if (!pawn) {
+    return <div style={{ padding: 40, color: 'var(--text-muted)', textAlign: 'center' }}>ไม่พบข้อมูล</div>
+  }
 
   const isAdjustedToNewTicket = Boolean(renewedTo)
   const adjustedType = renewedTo ? (Number(renewedTo.renewal_principal_paid) < 0 ? 'เพิ่มยอด' : 'ลดต้น') : ''
   const headerBadgeClass = pawn.status === 'active' ? 'badge-active' : isAdjustedToNewTicket ? 'badge-pending' : 'badge-redeemed'
   const headerBadgeLabel = pawn.status === 'active' ? 'จำนำอยู่' : isAdjustedToNewTicket ? `${adjustedType} -> #${renewedTo?.ticket_no}` : 'ไถ่ถอนไปแล้ว'
   const cameFromTopup = Number(pawn.renewal_principal_paid) < 0
-  const shouldAllowTransferUpload = pawn.tx_status === 'pending_transfer' || (pawn.renewed_from_id && transferSlips.length === 0)
-  const missingInterestSlips = interests.filter((item) => !item.slip_url)
 
   return (
     <main className="page-container">
@@ -348,62 +372,15 @@ export default function PawnDetail() {
         redemption={redemption}
         onViewImg={setViewImg}
         onUploadPawnSlip={uploadPawnTicketSlip}
+        onUploadInterestSlip={uploadInterestSlip}
+        onUploadRedemptionSlip={uploadRedemptionSlip}
         onConfirmTransfer={confirmTransfer}
         onBypassCash={handleBypassCash}
         onBypassPrepaid={handleBypassPrepaid}
         uploadingPawnSlip={uploadingPawnSlip}
+        uploadingDocKey={uploadingDocKey}
         isOwner={isOwner}
       />
-
-      {(!pawn.pawn_slip_url || shouldAllowTransferUpload || missingInterestSlips.length > 0 || (redemption && (!redemption.pawn_slip_url || !redemption.transfer_slip_url))) && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>อัปหลักฐานย้อนหลัง</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-            ถ้าตอนบันทึกลืมอัปรูป สามารถกลับมาเพิ่มทีหลังได้จากตรงนี้
-          </div>
-
-          {!pawn.pawn_slip_url && (
-            <UploadActionRow
-              label="รูปตั๋วจำนำ"
-              busy={uploadingDocKey === 'pawn_ticket'}
-              onSelect={(file) => void uploadPawnTicketSlip(file)}
-            />
-          )}
-
-          {shouldAllowTransferUpload && (
-            <UploadActionRow
-              label="สลิปโอนเงินของรายการนี้"
-              busy={uploadingPawnSlip}
-              onSelect={(file) => void confirmTransfer(file)}
-            />
-          )}
-
-          {missingInterestSlips.map((item, index) => (
-            <UploadActionRow
-              key={item.id}
-              label={`สลิปตัดดอกครั้งที่ ${index + 1}`}
-              busy={uploadingDocKey === `interest_${item.id}`}
-              onSelect={(file) => void uploadInterestSlip(item.id, file)}
-            />
-          ))}
-
-          {redemption && !redemption.pawn_slip_url && (
-            <UploadActionRow
-              label="รูปตั๋วตอนไถ่ถอน"
-              busy={uploadingDocKey === 'redemption_pawn_slip_url'}
-              onSelect={(file) => void uploadRedemptionSlip('pawn_slip_url', 'redeem-pawn', file)}
-            />
-          )}
-
-          {redemption && !redemption.transfer_slip_url && (
-            <UploadActionRow
-              label="สลิปโอนคืนตอนไถ่ถอน"
-              busy={uploadingDocKey === 'redemption_transfer_slip_url'}
-              onSelect={(file) => void uploadRedemptionSlip('transfer_slip_url', 'redeem-transfer', file)}
-            />
-          )}
-        </div>
-      )}
 
       {pawn.status === 'active' && pawn.tx_status === 'active' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

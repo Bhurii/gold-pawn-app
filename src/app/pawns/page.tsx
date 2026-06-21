@@ -62,6 +62,12 @@ export default function PawnList() {
     void loadPawns()
   }, [filter, debouncedSearch])
 
+  useEffect(() => {
+    pawns.slice(0, 8).forEach((pawn) => {
+      router.prefetch(`/pawns/${pawn.id}`)
+    })
+  }, [pawns, router])
+
   async function loadPawns() {
     setLoading(true)
     try {

@@ -23,6 +23,12 @@ export default function LoanList() {
     void loadLoans()
   }, [filter])
 
+  useEffect(() => {
+    loans.slice(0, 8).forEach((loan) => {
+      router.prefetch(`/loans/${loan.id}`)
+    })
+  }, [loans, router])
+
   async function loadLoans() {
     setLoading(true)
     try {

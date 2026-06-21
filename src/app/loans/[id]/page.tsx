@@ -30,6 +30,11 @@ type LoanTxnRow = {
   note: string | null
 }
 
+type LoanDetailCache = {
+  loan: LoanRow | null
+  txns: LoanTxnRow[]
+}
+
 export default function LoanDetail() {
   const router = useRouter()
   const { id } = useParams()
@@ -44,11 +49,34 @@ export default function LoanDetail() {
   const [image, setImage] = useState<File | null>(null)
   const [preview, setPreview] = useState('')
   const [viewImg, setViewImg] = useState('')
+  const [expandedTxnUploadId, setExpandedTxnUploadId] = useState('')
   const [form, setForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], note: '' })
 
   useEffect(() => {
-    if (loanId) void loadData()
+    if (!loanId) return
+    hydrateFromCache()
+    void loadData()
   }, [loanId])
+
+  function getCacheKey() {
+    return loanId ? `loan-detail:${loanId}` : ''
+  }
+
+  function hydrateFromCache() {
+    const cacheKey = getCacheKey()
+    if (!cacheKey || typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem(cacheKey)
+      if (!raw) return
+      const cached = JSON.parse(raw) as LoanDetailCache
+      setLoan(cached.loan || null)
+      setTxns(cached.txns || [])
+      setLoading(false)
+    } catch {
+      // Ignore invalid cache and refetch.
+    }
+  }
 
   async function loadData() {
     if (!loanId) return
@@ -59,8 +87,18 @@ export default function LoanDetail() {
         throw new Error(payload?.error || 'โหลดข้อมูลสินเชื่อไม่สำเร็จ')
       }
 
-      setLoan((payload?.loan as LoanRow | null) || null)
-      setTxns((payload?.txns as LoanTxnRow[] | null) || [])
+      const nextCache: LoanDetailCache = {
+        loan: (payload?.loan as LoanRow | null) || null,
+        txns: (payload?.txns as LoanTxnRow[] | null) || [],
+      }
+      setLoan(nextCache.loan)
+      setTxns(nextCache.txns)
+      if (typeof window !== 'undefined') {
+        const cacheKey = getCacheKey()
+        if (cacheKey) {
+          window.sessionStorage.setItem(cacheKey, JSON.stringify(nextCache))
+        }
+      }
     } catch {
       setLoan(null)
       setTxns([])
@@ -303,17 +341,28 @@ export default function LoanDetail() {
                   <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{new Date(txn.transaction_date).toLocaleDateString('th-TH')}</div>
                   {txn.note && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{txn.note}</div>}
                   {!txn.slip_url && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-                      <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: '1.5px dashed var(--border-hover)', borderRadius: 10, padding: '10px', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                        <input type="file" accept="image/*" capture="environment" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadTxnSlip(txn.id, file) }} style={{ display: 'none' }} />
-                        <span style={{ fontSize: 18 }}>📷</span>
-                        <span style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>อัปสลิป</span>
-                      </label>
-                      <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: '1.5px dashed var(--border-hover)', borderRadius: 10, padding: '10px', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
-                        <input type="file" accept="image/*" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadTxnSlip(txn.id, file) }} style={{ display: 'none' }} />
-                        <span style={{ fontSize: 18 }}>🖼️</span>
-                        <span style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>จากคลัง</span>
-                      </label>
+                    <div style={{ marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedTxnUploadId(expandedTxnUploadId === txn.id ? '' : txn.id)}
+                        style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-hover)', background: 'rgba(255,255,255,0.03)', color: 'var(--gold)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                      >
+                        เพิ่มสลิปย้อนหลัง
+                      </button>
+                      {expandedTxnUploadId === txn.id && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+                          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: '1.5px dashed var(--border-hover)', borderRadius: 10, padding: '10px', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                            <input type="file" accept="image/*" capture="environment" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadTxnSlip(txn.id, file) }} style={{ display: 'none' }} />
+                            <span style={{ fontSize: 18 }}>📷</span>
+                            <span style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>อัปสลิป</span>
+                          </label>
+                          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, border: '1.5px dashed var(--border-hover)', borderRadius: 10, padding: '10px', cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                            <input type="file" accept="image/*" disabled={saving} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadTxnSlip(txn.id, file) }} style={{ display: 'none' }} />
+                            <span style={{ fontSize: 18 }}>🖼️</span>
+                            <span style={{ color: 'var(--gold)', fontSize: 11, fontWeight: 600 }}>จากคลัง</span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
