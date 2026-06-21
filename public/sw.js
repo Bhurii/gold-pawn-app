@@ -20,7 +20,7 @@ self.addEventListener('push', (event) => {
     try {
       const subscription = await self.registration.pushManager.getSubscription()
       const endpoint = subscription?.endpoint ? `?endpoint=${encodeURIComponent(subscription.endpoint)}` : ''
-      const response = await fetch(`/api/push/latest${endpoint}`, { cache: 'no-store' })
+      const response = await fetch(new URL(`/api/push/latest${endpoint}`, self.location.origin), { cache: 'no-store' })
       if (response.ok) {
         payload = await response.json()
       }

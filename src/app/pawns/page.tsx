@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { canViewAllFunds, FUND_OWNER_BADGES, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
 import { Pawn } from '@/lib/types'
 
@@ -31,6 +31,25 @@ const VALID_FILTERS: PawnFilter[] = ['all', 'active', 'redeemed', 'pending_trans
 
 function normalizeFilter(value: string | null): PawnFilter {
   return VALID_FILTERS.includes(value as PawnFilter) ? (value as PawnFilter) : 'all'
+}
+
+function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 700,
+        marginTop: 6,
+        ...FUND_OWNER_BADGE_STYLES[owner],
+      }}
+    >
+      {FUND_OWNER_BADGES[owner]}
+    </span>
+  )
 }
 
 export default function PawnList() {
@@ -236,7 +255,9 @@ export default function PawnList() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>ตั๋ว #{pawn.ticket_no}</div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(pawn.pawn_date).toLocaleDateString('th-TH')}</div>
-                    <div style={{ fontSize: 12, color: 'var(--gold-light)', marginTop: 4 }}>{pawn.fund_owner ? FUND_OWNER_BADGES[pawn.fund_owner] : 'ทุนโทนี่'}</div>
+                    <div style={{ marginTop: 4 }}>
+                      <OwnerBadge owner={pawn.fund_owner || 'tony'} />
+                    </div>
                     {adjusted && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{adjusted.type === 'topup' ? 'เพิ่มยอด' : 'ลดต้น'}{' -> '}ตั๋วใหม่ #{adjusted.ticket_no}</div>}
                   </div>
                   <div style={{ textAlign: 'right' }}>

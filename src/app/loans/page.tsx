@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { canViewAllFunds, FUND_OWNER_BADGES, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
 
 type LoanRow = {
@@ -19,6 +19,25 @@ type LoanRow = {
 
 type LoanListCache = {
   loans: LoanRow[]
+}
+
+function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 700,
+        marginTop: 6,
+        ...FUND_OWNER_BADGE_STYLES[owner],
+      }}
+    >
+      {FUND_OWNER_BADGES[owner]}
+    </span>
+  )
 }
 
 export default function LoanList() {
@@ -150,7 +169,9 @@ export default function LoanList() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 700 }}>{loan.borrower_name}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>เริ่ม {new Date(loan.start_date).toLocaleDateString('th-TH')}</div>
-                <div style={{ fontSize: 12, color: 'var(--gold-light)', marginTop: 4 }}>{loan.fund_owner ? FUND_OWNER_BADGES[loan.fund_owner] : 'ทุนโทนี่'}</div>
+                <div style={{ marginTop: 4 }}>
+                  <OwnerBadge owner={loan.fund_owner || 'tony'} />
+                </div>
                 {loan.interest_rate > 0 && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ดอก {loan.interest_rate}%/เดือน</div>}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>

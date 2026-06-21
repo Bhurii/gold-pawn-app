@@ -15,6 +15,39 @@ type NotificationRow = {
   created_at: string
 }
 
+export async function getLatestPushPayloadForUser(user: SessionUser | null, endpoint?: string | null) {
+  const payload = await getLatestPushPayload(endpoint)
+  if (payload.tag !== 'haanthong-default' || !user) {
+    return payload
+  }
+
+  const feed = await getNotificationFeed(user, 20)
+  const latest = feed[0]
+  if (latest) {
+    return {
+      title: latest.title,
+      body: latest.body,
+      url: latest.url,
+      tag: `haanthong-${latest.type}`,
+      type: latest.type,
+    }
+  }
+
+  const pending = await getPendingActionFeed(user)
+  const nextPending = pending[0]
+  if (nextPending) {
+    return {
+      title: nextPending.title,
+      body: nextPending.body,
+      url: nextPending.url,
+      tag: `haanthong-${nextPending.type}`,
+      type: nextPending.type,
+    }
+  }
+
+  return payload
+}
+
 export type NotificationFeedItem = {
   id: string
   type: string
@@ -182,7 +215,11 @@ export async function unsubscribePushSubscription(endpoint: string) {
 async function getSubscriptionRole(endpoint?: string | null) {
   if (!endpoint) return null
   const subscription = (await listSubscriptions()).find((row) => row.endpoint === endpoint && row.enabled)
-  return subscription?.userKey || null
+  if (subscription?.userKey) return subscription.userKey
+  if (subscription?.role === 'owner') return 'tony'
+  if (subscription?.role === 'agent') return 'louise'
+  if (subscription?.role === 'viewer') return 'phat'
+  return null
 }
 
 function getNotificationTitle(type: string) {
@@ -318,6 +355,7 @@ export async function getLatestPushPayload(endpoint?: string | null) {
     body: latest.body,
     url: latest.url,
     tag: `haanthong-${latest.type}`,
+    type: latest.type,
   }
 }
 

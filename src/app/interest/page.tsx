@@ -3,11 +3,9 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
+import { FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
-import { supabase } from '@/lib/supabase'
 import { fmt, toThaiDateShort } from '@/lib/utils'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
@@ -17,6 +15,25 @@ type PawnRow = {
   pawn_date: string
   amount: number
   fund_owner?: FundOwnerKey
+}
+
+function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 11,
+        fontWeight: 700,
+        marginTop: 6,
+        ...FUND_OWNER_BADGE_STYLES[owner],
+      }}
+    >
+      {FUND_OWNER_BADGES[owner]}
+    </span>
+  )
 }
 
 function InterestContent() {
@@ -92,22 +109,24 @@ function InterestContent() {
       const paymentDate = requireDate(form.payment_date, 'Payment date')
       const slipUrl = image ? await uploadSlip(image, 'interest') : ''
 
-      await supabase.from('interest_payments').insert({
-        pawn_id: selected.id,
-        payment_date: paymentDate,
-        amount,
-        slip_url: slipUrl,
-        note: form.note,
+      const response = await fetch('/api/interest-payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pawn_id: selected.id,
+          payment_date: paymentDate,
+          amount,
+          slip_url: slipUrl,
+          note: form.note,
+        }),
       })
 
-      await supabase.from('notifications').insert({
-        type: 'interest_paid',
-        message: `ตัดดอกตั๋ว #${selected.ticket_no} ฿${amount.toLocaleString('th-TH')}`,
-        pawn_id: selected.id,
-        action_url: createNotificationAction(`/pawns/${selected.id}`, [...getNotificationRecipientsForFundOwner(selected.fund_owner || 'tony')]),
-      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการตัดดอกไม่สำเร็จ')
+      }
+
       await pingPushDispatch()
-
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'บันทึกการตัดดอกเรียบร้อยแล้ว' })
       router.push(`/pawns/${selected.id}`)
     } catch (e) {
@@ -153,6 +172,7 @@ function InterestContent() {
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 16, fontWeight: 700 }}>ตั๋ว #{pawn.ticket_no}</div>
                       <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(pawn.pawn_date)}</div>
+                      {pawn.fund_owner && <OwnerBadge owner={pawn.fund_owner} />}
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>฿{fmt(pawn.amount)}</div>
                     {selected?.id === pawn.id && <span style={{ fontSize: 18, color: 'var(--gold)' }}>✓</span>}
@@ -168,6 +188,7 @@ function InterestContent() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>ตั๋ว #{selected.ticket_no}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{toThaiDateShort(selected.pawn_date)}</div>
+                {selected.fund_owner && <OwnerBadge owner={selected.fund_owner} />}
               </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>฿{fmt(selected.amount)}</div>
             </div>
