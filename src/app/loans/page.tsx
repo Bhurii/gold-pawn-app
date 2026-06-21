@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
 
 type LoanRow = {
@@ -44,13 +44,13 @@ export default function LoanList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const session = getSession()
-  const defaultScope = getDefaultFundScope(session)
+  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
   const [loans, setLoans] = useState<LoanRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'closed'>((searchParams.get('filter') as 'all' | 'active' | 'closed') || 'all')
   const [ownerScope, setOwnerScope] = useState<'all' | FundOwnerKey>(() => {
     const raw = searchParams.get('owner_scope')
-    if (raw === 'all') return defaultScope === 'all' ? 'all' : defaultScope
+    if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
     return isFundOwnerKey(raw) ? raw : defaultScope
   })
 
@@ -132,10 +132,7 @@ export default function LoanList() {
 
       {canViewAllFunds(session) && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {([
-            [session?.user_key || 'tony', 'ของฉัน'],
-            ['all', 'ทั้งหมด'],
-          ] as const).map(([value, label]) => (
+          {getOwnerScopeOptions(session).map(({ value, label }) => (
             <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
               {label}
             </button>

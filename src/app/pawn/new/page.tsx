@@ -10,6 +10,7 @@ import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefau
 import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type ExistingPawn = {
@@ -147,12 +148,13 @@ export default function NewPawn() {
       }).select().single()
       if (error) throw error
 
-      await supabase.from('notifications').insert({
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'pawn_created',
         message: `มีรายการรับจำนำใหม่ ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]} รอโอนเงิน`,
         pawn_id: pawn.id,
         action_url: createNotificationAction(`/pawns/${pawn.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'รอโอนเงินให้รายการนี้' })

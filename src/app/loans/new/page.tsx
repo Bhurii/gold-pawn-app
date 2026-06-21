@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth'
 import { createNotificationAction } from '@/lib/notification-meta'
 import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { supabase } from '@/lib/supabase'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
@@ -53,19 +54,21 @@ export default function NewLoan() {
       }).select().single()
       if (error) throw error
 
-      await supabase.from('loan_transactions').insert({
+      const txnInsert = await supabase.from('loan_transactions').insert({
         loan_id: loan.id,
         type: 'principal',
         amount: principal,
         transaction_date: startDate,
         note: 'ปล่อยกู้ครั้งแรก',
       })
+      assertSupabaseMutation(txnInsert, 'บันทึกประวัติสินเชื่อไม่สำเร็จ')
 
-      await supabase.from('notifications').insert({
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'loan_created',
         message: `ปล่อยกู้ใหม่ ${form.borrower_name} ฿${principal.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]}`,
         action_url: createNotificationAction(`/loans/${loan.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'สร้างรายการสินเชื่อใหม่เรียบร้อยแล้ว' })

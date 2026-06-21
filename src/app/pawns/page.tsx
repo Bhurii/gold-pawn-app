@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
 import { Pawn } from '@/lib/types'
 
@@ -56,7 +56,7 @@ export default function PawnList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const session = getSession()
-  const defaultScope = getDefaultFundScope(session)
+  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
   const [pawns, setPawns] = useState<PawnRow[]>([])
   const [adjustedMap, setAdjustedMap] = useState<Map<string, AdjustedInfo>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -65,7 +65,7 @@ export default function PawnList() {
   const [debouncedSearch, setDebouncedSearch] = useState(searchParams.get('search') || '')
   const [ownerScope, setOwnerScope] = useState<'all' | FundOwnerKey>(() => {
     const raw = searchParams.get('owner_scope')
-    if (raw === 'all') return defaultScope === 'all' ? 'all' : defaultScope
+    if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
     return isFundOwnerKey(raw) ? raw : defaultScope
   })
 
@@ -73,7 +73,7 @@ export default function PawnList() {
     setFilter(normalizeFilter(searchParams.get('filter')))
     setSearch(searchParams.get('search') || '')
     const nextScope = searchParams.get('owner_scope')
-    if (nextScope === 'all' || isFundOwnerKey(nextScope)) {
+    if ((nextScope === 'all' && canViewAllFunds(session)) || isFundOwnerKey(nextScope)) {
       setOwnerScope(nextScope)
     }
   }, [searchParams])
@@ -200,10 +200,7 @@ export default function PawnList() {
 
       {canViewAllFunds(session) && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {([
-            [session?.user_key || 'tony', 'ของฉัน'],
-            ['all', 'ทั้งหมด'],
-          ] as const).map(([value, label]) => (
+          {getOwnerScopeOptions(session).map(({ value, label }) => (
             <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
               {label}
             </button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { canViewAllFunds, getDefaultFundScope, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
+import { canViewAllFunds, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
@@ -42,13 +42,13 @@ export default function Report() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const session = getSession()
-  const defaultScope = getDefaultFundScope(session)
+  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
   const currentYear = new Date().getFullYear()
   const [selectedPeriod, setSelectedPeriod] = useState<SelectedPeriod>(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(currentYear)
   const [ownerScope, setOwnerScope] = useState<'all' | FundOwnerKey>(() => {
     const raw = searchParams.get('owner_scope')
-    if (raw === 'all') return defaultScope === 'all' ? 'all' : defaultScope
+    if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
     return isFundOwnerKey(raw) ? raw : defaultScope
   })
   const [report, setReport] = useState<ReportPayload | null>(null)
@@ -166,10 +166,7 @@ export default function Report() {
 
       {canViewAllFunds(session) && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {([
-            [session?.user_key || 'tony', 'ของฉัน'],
-            ['all', 'ทั้งหมด'],
-          ] as const).map(([value, label]) => (
+          {getOwnerScopeOptions(session).map(({ value, label }) => (
             <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
               {label}
             </button>

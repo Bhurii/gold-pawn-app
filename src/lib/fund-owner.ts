@@ -71,3 +71,14 @@ export function getNotificationRecipientsForFundOwner(owner: FundOwnerKey) {
 export function getFundOwnerLabel(owner: FundOwnerKey) {
   return FUND_OWNER_LABELS[owner]
 }
+
+export function getOwnerScopeOptions(user?: Pick<AppUser, 'user_key'> | null) {
+  const mine = user?.user_key && isFundOwnerKey(user.user_key) ? user.user_key : 'tony'
+  const owners = getAccessibleFundOwners(user)
+
+  return [
+    { value: mine, label: 'ของฉัน' },
+    ...owners.filter((owner) => owner !== mine).map((owner) => ({ value: owner, label: FUND_OWNER_LABELS[owner] })),
+    ...(canViewAllFunds(user) ? [{ value: 'all' as const, label: 'ทั้งหมด' }] : []),
+  ]
+}

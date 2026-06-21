@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { canViewAllFunds, FUND_OWNER_BADGES, getDefaultFundScope } from '@/lib/fund-owner'
+import { FUND_OWNER_BADGES } from '@/lib/fund-owner'
 import { getSession, type AppUser } from '@/lib/auth'
 import { fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
@@ -47,16 +47,16 @@ export default function Dashboard() {
   const [pendingPawns, setPendingPawns] = useState<PendingPawn[]>([])
   const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
   const [loading, setLoading] = useState(true)
-  const [ownerScope, setOwnerScope] = useState<'all' | 'tony' | 'louise' | 'phat'>(() => {
+  const [ownerScope, setOwnerScope] = useState<'tony' | 'louise' | 'phat'>(() => {
     const session = getSession()
-    return getDefaultFundScope(session)
+    return session?.user_key || 'tony'
   })
 
   useEffect(() => {
     const session = getSession()
     if (session) {
       setUser(session)
-      setOwnerScope(getDefaultFundScope(session))
+      setOwnerScope(session.user_key)
     }
   }, [])
 
@@ -128,8 +128,6 @@ export default function Dashboard() {
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
   const pendingCount = pendingPawns.length + pendingRedeems.length
-  const showScopeSwitch = canViewAllFunds(user)
-
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>
@@ -158,22 +156,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {showScopeSwitch && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-          {([
-            [user?.user_key || 'tony', 'ของฉัน'],
-            ['all', 'ทั้งหมด'],
-          ] as const).map(([value, label]) => (
-            <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="panel-gold" style={{ borderRadius: 22, padding: 22, marginBottom: 14 }}>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-          {ownerScope === 'all' ? 'ภาพรวมทุกพอร์ต' : FUND_OWNER_BADGES[ownerScope]}
+          {FUND_OWNER_BADGES[ownerScope]}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
           <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 14, padding: '12px 14px' }}>

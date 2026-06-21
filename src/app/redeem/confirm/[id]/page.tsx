@@ -9,6 +9,7 @@ import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/
 import { getSession } from '@/lib/auth'
 import { toThaiDateLong, fmt } from '@/lib/utils'
 import { pingPushDispatch } from '@/lib/push-client'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { errorMessage } from '@/lib/validation'
 
 type RedemptionRow = {
@@ -72,14 +73,17 @@ export default function ConfirmRedeem() {
     if (!redemption) return
     setConfirming(true)
     try {
-      await supabase.from('redemptions').update({ status: 'confirmed' }).eq('id', id)
-      await supabase.from('pawns').update({ status: 'redeemed', tx_status: 'redeemed' }).eq('id', redemption.pawn_id)
-      await supabase.from('notifications').insert({
+      const redemptionUpdate = await supabase.from('redemptions').update({ status: 'confirmed' }).eq('id', id)
+      assertSupabaseMutation(redemptionUpdate, 'ยืนยันไถ่ถอนไม่สำเร็จ')
+      const pawnUpdate = await supabase.from('pawns').update({ status: 'redeemed', tx_status: 'redeemed' }).eq('id', redemption.pawn_id)
+      assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'redeem_confirmed',
         message: `ยืนยันไถ่ถอนแล้ว ตั๋ว #${pawn?.ticket_no}`,
         pawn_id: redemption.pawn_id,
         action_url: createNotificationAction(`/pawns/${redemption.pawn_id}`, [...getNotificationRecipientsForFundOwner(pawn?.fund_owner || 'tony')]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
       showToast({ tone: 'success', title: 'ยืนยันสำเร็จ', message: 'ไถ่ถอนเรียบร้อยแล้ว' })
       router.replace('/')

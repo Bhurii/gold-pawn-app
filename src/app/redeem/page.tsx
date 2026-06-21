@@ -9,6 +9,7 @@ import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/
 import { toThaiDateShort, fmt } from '@/lib/utils'
 import { uploadSlip } from '@/lib/slip-storage'
 import { pingPushDispatch } from '@/lib/push-client'
+import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { errorMessage, parseNonNegativeMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -123,13 +124,15 @@ function RedeemContent() {
       }).select('id').single()
       if (error) throw error
 
-      await supabase.from('pawns').update({ tx_status: 'pending_redeem' }).eq('id', selected.id)
-      await supabase.from('notifications').insert({
+      const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'pending_redeem' }).eq('id', selected.id)
+      assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
+      const notificationInsert = await supabase.from('notifications').insert({
         type: 'redeem_pending',
         message: `มีรายการไถ่ถอน ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอยืนยัน`,
         pawn_id: selected.id,
         action_url: createNotificationAction(`/redeem/confirm/${redemption.id}`, [...getNotificationRecipientsForFundOwner(selected.fund_owner || 'tony')]),
       })
+      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       showToast({ tone: 'success', title: 'ส่งคำขอแล้ว', message: 'รอยืนยันการไถ่ถอน' })
