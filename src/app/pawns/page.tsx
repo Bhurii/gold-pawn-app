@@ -71,7 +71,8 @@ function getScopeChips(session: ReturnType<typeof getSession>) {
 export default function PawnList() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const session = getSession()
+  const session = useMemo(() => getSession(), [])
+  const canViewAll = canViewAllFunds(session)
   const defaultScope: 'all' | FundOwnerKey = canViewAllFunds(session) ? 'all' : (session?.user_key || 'tony')
   const [pawns, setPawns] = useState<PawnRow[]>([])
   const [adjustedMap, setAdjustedMap] = useState<Map<string, AdjustedInfo>>(new Map())
@@ -90,12 +91,12 @@ export default function PawnList() {
     setFilter(normalizeFilter(searchParams.get('filter')))
     setSearch(searchParams.get('search') || '')
     const nextScope = searchParams.get('owner_scope')
-    if ((nextScope === 'all' && canViewAllFunds(session)) || isFundOwnerKey(nextScope)) {
+    if ((nextScope === 'all' && canViewAll) || isFundOwnerKey(nextScope)) {
       setOwnerScope(nextScope)
       return
     }
     setOwnerScope(defaultScope)
-  }, [defaultScope, searchParams, session])
+  }, [canViewAll, defaultScope, searchParams])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

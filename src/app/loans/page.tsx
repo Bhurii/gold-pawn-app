@@ -59,7 +59,8 @@ function getScopeChips(session: ReturnType<typeof getSession>) {
 export default function LoanList() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const session = getSession()
+  const session = useMemo(() => getSession(), [])
+  const canViewAll = canViewAllFunds(session)
   const defaultScope: 'all' | FundOwnerKey = canViewAllFunds(session) ? 'all' : (session?.user_key || 'tony')
   const [loans, setLoans] = useState<LoanRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -75,12 +76,12 @@ export default function LoanList() {
     const nextFilter = searchParams.get('filter')
     setFilter(nextFilter === 'active' || nextFilter === 'closed' ? nextFilter : 'all')
     const nextScope = searchParams.get('owner_scope')
-    if ((nextScope === 'all' && canViewAllFunds(session)) || isFundOwnerKey(nextScope)) {
+    if ((nextScope === 'all' && canViewAll) || isFundOwnerKey(nextScope)) {
       setOwnerScope(nextScope)
       return
     }
     setOwnerScope(defaultScope)
-  }, [defaultScope, searchParams, session])
+  }, [canViewAll, defaultScope, searchParams])
 
   useEffect(() => {
     hydrateFromCache(filter, ownerScope)
