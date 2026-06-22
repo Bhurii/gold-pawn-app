@@ -1,11 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
+import {
+  canViewAllFunds,
+  FUND_OWNER_BADGES,
+  FUND_OWNER_BADGE_STYLES,
+  FUND_OWNER_LABELS,
+  getAccessibleFundOwners,
+  isFundOwnerKey,
+  type FundOwnerKey,
+} from '@/lib/fund-owner'
 
 type LoanRow = {
   id: string
@@ -40,11 +48,19 @@ function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
   )
 }
 
+function getScopeChips(session: ReturnType<typeof getSession>) {
+  const owners = getAccessibleFundOwners(session)
+  const ownerChips = owners.map((owner) => ({ value: owner, label: FUND_OWNER_LABELS[owner] }))
+  return canViewAllFunds(session)
+    ? [{ value: 'all' as const, label: 'ทั้งหมด' }, ...ownerChips]
+    : ownerChips
+}
+
 export default function LoanList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const session = getSession()
-  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
+  const defaultScope: 'all' | FundOwnerKey = canViewAllFunds(session) ? 'all' : (session?.user_key || 'tony')
   const [loans, setLoans] = useState<LoanRow[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'closed'>((searchParams.get('filter') as 'all' | 'active' | 'closed') || 'all')
@@ -53,6 +69,18 @@ export default function LoanList() {
     if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
     return isFundOwnerKey(raw) ? raw : defaultScope
   })
+  const scopeChips = useMemo(() => getScopeChips(session), [session])
+
+  useEffect(() => {
+    const nextFilter = searchParams.get('filter')
+    setFilter(nextFilter === 'active' || nextFilter === 'closed' ? nextFilter : 'all')
+    const nextScope = searchParams.get('owner_scope')
+    if ((nextScope === 'all' && canViewAllFunds(session)) || isFundOwnerKey(nextScope)) {
+      setOwnerScope(nextScope)
+      return
+    }
+    setOwnerScope(defaultScope)
+  }, [defaultScope, searchParams, session])
 
   useEffect(() => {
     hydrateFromCache(filter, ownerScope)
@@ -130,28 +158,34 @@ export default function LoanList() {
         </Link>
       </div>
 
-      {canViewAllFunds(session) && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {getOwnerScopeOptions(session).map(({ value, label }) => (
-            <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
-              {label}
+      <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+        {scopeChips.length > 1 && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10, fontWeight: 700 }}>เจ้าของเงิน</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              {scopeChips.map(({ value, label }) => (
+                <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10, fontWeight: 700 }}>สถานะ</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+          {(['all', 'active', 'closed'] as const).map((value) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              className="filter-chip"
+              data-active={filter === value}
+              type="button"
+            >
+              {value === 'all' ? 'ทั้งหมด' : value === 'active' ? 'ค้างอยู่' : 'ปิดแล้ว'}
             </button>
           ))}
         </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {(['all', 'active', 'closed'] as const).map((value) => (
-          <button
-            key={value}
-            onClick={() => setFilter(value)}
-            className="filter-chip"
-            data-active={filter === value}
-            type="button"
-          >
-            {value === 'all' ? 'ทั้งหมด' : value === 'active' ? 'ค้างอยู่' : 'ปิดแล้ว'}
-          </button>
-        ))}
       </div>
 
       {loading ? (
@@ -165,11 +199,17 @@ export default function LoanList() {
               <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(242,201,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>👤</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 700 }}>{loan.borrower_name}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>เริ่ม {new Date(loan.start_date).toLocaleDateString('th-TH')}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                  เริ่ม {new Date(loan.start_date).toLocaleDateString('th-TH')}
+                </div>
                 <div style={{ marginTop: 4 }}>
                   <OwnerBadge owner={loan.fund_owner || 'tony'} />
                 </div>
-                {loan.interest_rate > 0 && <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>ดอก {loan.interest_rate}%/เดือน</div>}
+                {loan.interest_rate > 0 && (
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    ดอก {loan.interest_rate}%/เดือน
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--gold)' }}>฿{fmt(loan.remaining_principal)}</div>

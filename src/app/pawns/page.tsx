@@ -4,8 +4,16 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BottomNav from '@/components/BottomNav'
-import { canViewAllFunds, FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, getOwnerScopeOptions, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
+import {
+  canViewAllFunds,
+  FUND_OWNER_BADGES,
+  FUND_OWNER_BADGE_STYLES,
+  FUND_OWNER_LABELS,
+  getAccessibleFundOwners,
+  isFundOwnerKey,
+  type FundOwnerKey,
+} from '@/lib/fund-owner'
 import { Pawn } from '@/lib/types'
 
 type PawnRow = Pawn & {
@@ -52,6 +60,14 @@ function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
   )
 }
 
+function getScopeChips(session: ReturnType<typeof getSession>) {
+  const owners = getAccessibleFundOwners(session)
+  const ownerChips = owners.map((owner) => ({ value: owner, label: FUND_OWNER_LABELS[owner] }))
+  return canViewAllFunds(session)
+    ? [{ value: 'all' as const, label: 'ทั้งหมด' }, ...ownerChips]
+    : ownerChips
+}
+
 export default function PawnList() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -68,6 +84,7 @@ export default function PawnList() {
     if (raw === 'all') return canViewAllFunds(session) ? 'all' : defaultScope
     return isFundOwnerKey(raw) ? raw : defaultScope
   })
+  const scopeChips = useMemo(() => getScopeChips(session), [session])
 
   useEffect(() => {
     setFilter(normalizeFilter(searchParams.get('filter')))
@@ -142,7 +159,10 @@ export default function PawnList() {
       })
       setAdjustedMap(nextAdjustedMap)
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(filter, debouncedSearch, ownerScope), JSON.stringify({ pawns: nextPawns, adjusted: adjustedRows } satisfies PawnListCache))
+        window.sessionStorage.setItem(
+          getCacheKey(filter, debouncedSearch, ownerScope),
+          JSON.stringify({ pawns: nextPawns, adjusted: adjustedRows } satisfies PawnListCache),
+        )
       }
     } catch {
       setPawns([])
@@ -197,26 +217,30 @@ export default function PawnList() {
     <main className="page-container">
       <div style={{ padding: '52px 0 16px' }}>
         <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--gold)' }}>🔍 ค้นหาตั๋ว</div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>ค้นหา ดูสถานะ และกดทำงานต่อจากรายการนั้นได้เลย</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+          ค้นหา ดูสถานะ และกดทำงานต่อจากรายการนั้นได้เลย
+        </div>
       </div>
 
-      {canViewAllFunds(session) && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {(canViewAllFunds(session)
-            ? [{ value: 'all' as const, label: 'ทั้งหมด' }, ...getOwnerScopeOptions(session).filter((item) => item.value !== 'all')]
-            : getOwnerScopeOptions(session)
-          ).map(({ value, label }) => (
-            <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="card" style={{ marginBottom: 12, padding: 16 }}>
+        {scopeChips.length > 1 && (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10, fontWeight: 700 }}>เจ้าของเงิน</div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              {scopeChips.map(({ value, label }) => (
+                <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10, fontWeight: 700 }}>ค้นหาเลขตั๋ว</div>
         <input className="input-field" type="text" inputMode="numeric" placeholder="เช่น 23779" value={search} onChange={(event) => setSearch(event.target.value)} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 14, marginBottom: 10, fontWeight: 700 }}>สถานะ</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
           {([
             ['all', 'ทั้งหมด'],
             ['active', 'จำนำอยู่'],
@@ -242,7 +266,9 @@ export default function PawnList() {
       {loading ? (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Loading...</div>
       ) : pawns.length === 0 ? (
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>{debouncedSearch ? 'ไม่พบเลขตั๋วที่ค้นหา' : 'ไม่มีรายการ'}</div>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+          {debouncedSearch ? 'ไม่พบเลขตั๋วที่ค้นหา' : 'ไม่มีรายการ'}
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {pawns.map((pawn) => {
@@ -250,20 +276,51 @@ export default function PawnList() {
             const adjusted = adjustedMap.get(pawn.id)
             return (
               <div key={pawn.id} className="card" style={{ padding: 16 }}>
-                <Link href={`/pawns/${pawn.id}`} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12, textDecoration: 'none', color: 'inherit' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'rgba(232,197,90,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
+                <Link
+                  href={`/pawns/${pawn.id}`}
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    marginBottom: 12,
+                    textDecoration: 'none',
+                    color: 'inherit',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      flexShrink: 0,
+                      background: 'rgba(232,197,90,0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 20,
+                    }}
+                  >
                     💍
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>ตั๋ว #{pawn.ticket_no}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(pawn.pawn_date).toLocaleDateString('th-TH')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {new Date(pawn.pawn_date).toLocaleDateString('th-TH')}
+                    </div>
                     <div style={{ marginTop: 4 }}>
                       <OwnerBadge owner={pawn.fund_owner || 'tony'} />
                     </div>
-                    {adjusted && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{adjusted.type === 'topup' ? 'เพิ่มยอด' : 'ลดต้น'}{' -> '}ตั๋วใหม่ #{adjusted.ticket_no}</div>}
+                    {adjusted && (
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                        {adjusted.type === 'topup' ? 'เพิ่มยอด' : 'ลดต้น'} {'->'} ตั๋วใหม่ #{adjusted.ticket_no}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--gold)' }}>฿{pawn.amount.toLocaleString('th-TH')}</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--gold)' }}>
+                      ฿{pawn.amount.toLocaleString('th-TH')}
+                    </div>
                     <span className={badge.className}>{badge.label}</span>
                   </div>
                 </Link>
