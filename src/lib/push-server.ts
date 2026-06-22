@@ -1,5 +1,6 @@
 import { sign } from 'node:crypto'
 import { canReceiveNotification, parseNotificationAction } from '@/lib/notification-meta'
+import { selectNotificationRows } from '@/lib/notification-store'
 import type { FundOwnerKey } from '@/lib/fund-owner'
 import { VAPID_PUBLIC_KEY } from '@/lib/push-config'
 import { createAdminClient } from '@/lib/server/admin'
@@ -264,11 +265,7 @@ async function resolveNotificationUrl(supabase: ReturnType<typeof createAdminCli
 
 export async function getNotificationFeed(user?: SessionUser | null, limit = 12) {
   const supabase = supabaseServer()
-  const { data } = await supabase
-    .from('notifications')
-    .select('id,type,message,pawn_id,action_url,created_at')
-    .order('created_at', { ascending: false })
-    .limit(60)
+  const { data } = await selectNotificationRows(supabase, 60)
 
   const rows = ((data as NotificationRow[] | null) || []).filter((item) => {
     if (INTERNAL_NOTIFICATION_TYPES.has(item.type)) return false

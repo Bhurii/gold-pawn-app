@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { insertNotificationRecord } from '@/lib/notification-store'
 import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
@@ -144,7 +145,7 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
             ? `ตัดต้นสินเชื่อ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
             : `ปิดสินเชื่อ ${loan.borrower_name} เรียบร้อย`
 
-      const notificationInsert = await supabase.from('notifications').insert({
+      const notificationInsert = await insertNotificationRecord(supabase, {
         type: notificationType,
         message: notificationMessage,
         action_url: createNotificationAction(`/loans/${loanId}`, [...getNotificationRecipientsForFundOwner((loan.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),

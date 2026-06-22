@@ -6,6 +6,7 @@ import PawnChecklist from '@/components/PawnChecklist'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { insertNotificationRecord } from '@/lib/notification-store'
 import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { uploadSlip } from '@/lib/slip-storage'
@@ -190,7 +191,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
         const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
         assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
       }
-      const notificationInsert = await supabase.from('notifications').insert({
+      const notificationInsert = await insertNotificationRecord(supabase, {
         type: 'transfer_confirmed',
         message: `อัปสลิปโอนเงินแล้ว ตั๋ว #${pawn.ticket_no} ฿${transferMeta.amount.toLocaleString('th-TH')}`,
         pawn_id: String(pawnId),
@@ -214,7 +215,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     setUploadingPawnSlip(true)
     const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
     assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
-    const notificationInsert = await supabase.from('notifications').insert({
+    const notificationInsert = await insertNotificationRecord(supabase, {
       type: 'bypass_cash',
       message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(pawnId),
@@ -234,7 +235,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     setUploadingPawnSlip(true)
     const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
     assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
-    const notificationInsert = await supabase.from('notifications').insert({
+    const notificationInsert = await insertNotificationRecord(supabase, {
       type: 'bypass_prepaid',
       message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
       pawn_id: String(pawnId),

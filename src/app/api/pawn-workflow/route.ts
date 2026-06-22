@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/server/admin'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { insertNotificationRecord } from '@/lib/notification-store'
 import { getNotificationRecipientsForFundOwner, isFundOwnerKey, type FundOwnerKey } from '@/lib/fund-owner'
 
 export const runtime = 'nodejs'
@@ -42,7 +43,7 @@ async function insertNotification(
   owner: FundOwnerKey,
   actionPath: string,
 ) {
-  const { error } = await supabase.from('notifications').insert({
+  const { error } = await insertNotificationRecord(supabase, {
     type,
     message,
     pawn_id: pawnId,

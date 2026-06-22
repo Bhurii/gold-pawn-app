@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { insertNotificationRecord } from '@/lib/notification-store'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { supabase } from '@/lib/supabase'
@@ -58,7 +59,7 @@ export default function OtherIncome() {
       })
       assertSupabaseMutation(incomeInsert, 'บันทึกรายได้ไม่สำเร็จ')
 
-      const notificationInsert = await supabase.from('notifications').insert({
+      const notificationInsert = await insertNotificationRecord(supabase, {
         type: 'other_income_added',
         message: `มีรายได้ใหม่ ${form.source} ฿${amount.toLocaleString('th-TH')}`,
         action_url: createNotificationAction('/other-income', ['all']),

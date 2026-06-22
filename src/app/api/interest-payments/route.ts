@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { insertNotificationRecord } from '@/lib/notification-store'
 import { getNotificationRecipientsForFundOwner } from '@/lib/fund-owner'
 import { createAdminClient } from '@/lib/server/admin'
 import { readSessionFromRequest } from '@/lib/server/app-session'
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: paymentError.message }, { status: 500 })
   }
 
-  const { error: notificationError } = await supabase.from('notifications').insert({
+  const { error: notificationError } = await insertNotificationRecord(supabase, {
     type: 'interest_paid',
     message: `ตัดดอกตั๋ว #${pawn.ticket_no} ฿${amount.toLocaleString('th-TH')}`,
     pawn_id: pawnId,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
 import { createNotificationAction } from '@/lib/notification-meta'
+import { insertNotificationRecord } from '@/lib/notification-store'
 import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertSupabaseMutation } from '@/lib/supabase-mutation'
@@ -63,7 +64,7 @@ export default function NewLoan() {
       })
       assertSupabaseMutation(txnInsert, 'บันทึกประวัติสินเชื่อไม่สำเร็จ')
 
-      const notificationInsert = await supabase.from('notifications').insert({
+      const notificationInsert = await insertNotificationRecord(supabase, {
         type: 'loan_created',
         message: `ปล่อยกู้ใหม่ ${form.borrower_name} ฿${principal.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]}`,
         action_url: createNotificationAction(`/loans/${loan.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
