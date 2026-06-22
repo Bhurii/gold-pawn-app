@@ -205,7 +205,7 @@ export default function Dashboard() {
           <Link href="/pawn/new" className="btn-primary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, textDecoration: 'none' }}>
             🪺 รับจำนำ
           </Link>
-          <Link href={`/pawns?owner_scope=${ownerScope}`} className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)', textDecoration: 'none' }}>
+          <Link href="/pawns" className="btn-secondary" style={{ fontSize: 15, padding: '16px 12px', minHeight: 60, background: 'rgba(255,255,255,0.02)', textDecoration: 'none' }}>
             🔍 ค้นหาตั๋ว
           </Link>
         </div>

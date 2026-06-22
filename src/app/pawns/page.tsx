@@ -75,8 +75,10 @@ export default function PawnList() {
     const nextScope = searchParams.get('owner_scope')
     if ((nextScope === 'all' && canViewAllFunds(session)) || isFundOwnerKey(nextScope)) {
       setOwnerScope(nextScope)
+      return
     }
-  }, [searchParams])
+    setOwnerScope(defaultScope)
+  }, [defaultScope, searchParams, session])
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
