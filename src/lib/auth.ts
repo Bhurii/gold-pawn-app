@@ -166,7 +166,7 @@ export async function loginPhat(pin: string): Promise<{ user: AppUser | null, er
 }
 
 export function canAccessSettings(user: AppUser | null): boolean {
-  return user?.role === 'owner' || user?.role === 'agent'
+  return Boolean(user?.role)
 }
 
 export function isAdmin(user: AppUser | null): boolean {

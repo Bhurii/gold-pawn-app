@@ -1,9 +1,15 @@
 import { createAdminClient } from '@/lib/server/admin'
 import { hashPin, isHashedPin, verifyPin } from '@/lib/server/pin'
+import type { FundOwnerKey } from '@/lib/fund-owner'
 
 const OWNER_PIN_TYPE = 'owner_pin_config'
 const AGENT_PIN_TYPE = 'agent_pin_config'
 const PHAT_PIN_TYPE = 'phat_pin_config'
+const BUDGET_TYPES: Record<FundOwnerKey, string> = {
+  tony: 'budget_config_tony',
+  louise: 'budget_config_louise',
+  phat: 'budget_config_phat',
+}
 
 type OwnerPinRecord = {
   hash?: string
@@ -14,6 +20,11 @@ type OwnerPinRecord = {
 type AgentPinRecord = {
   hash?: string
   pin?: string
+  updatedAt: string
+}
+
+type BudgetRecord = {
+  amount?: number
   updatedAt: string
 }
 
@@ -99,16 +110,84 @@ export async function loadSettingsState() {
   const settings = await readSettingsRow()
   const agentRecord = await loadPinRecord(AGENT_PIN_TYPE)
   const phatRecord = await loadPinRecord(PHAT_PIN_TYPE)
+  const budgets = await loadBudgetState()
 
   return {
     id: settings?.id || '',
-    invest_budget: Number(settings?.invest_budget || 0),
+    invest_budget: budgets.tony,
+    budgets,
     hasAgentPin: Boolean(agentRecord?.record?.hash || agentRecord?.record?.pin || settings?.agent_pin_hash || settings?.agent_pin),
     hasPhatPin: Boolean(phatRecord?.record?.hash || phatRecord?.record?.pin),
   }
 }
 
-export async function saveBudget(investBudget: number) {
+async function loadBudgetRecord(owner: FundOwnerKey) {
+  const current = await loadPinRecord(BUDGET_TYPES[owner])
+  if (!current) return null
+  return {
+    id: current.id,
+    record: current.record as BudgetRecord,
+  }
+}
+
+async function saveBudgetRecord(owner: FundOwnerKey, amount: number) {
+  const supabase = createAdminClient()
+  const payload = {
+    amount,
+    updatedAt: new Date().toISOString(),
+  }
+  const current = await loadBudgetRecord(owner)
+
+  if (current?.id) {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ message: JSON.stringify(payload), is_read: true })
+      .eq('id', current.id)
+    if (error) throw error
+    return
+  }
+
+  const { error } = await supabase.from('notifications').insert({
+    type: BUDGET_TYPES[owner],
+    message: JSON.stringify(payload),
+    is_read: true,
+  })
+  if (error) throw error
+}
+
+export async function loadBudgetState(): Promise<Record<FundOwnerKey, number>> {
+  const settings = await readSettingsRow()
+  const base: Record<FundOwnerKey, number> = {
+    tony: Number(settings?.invest_budget || 0),
+    louise: 0,
+    phat: 0,
+  }
+
+  for (const owner of Object.keys(BUDGET_TYPES) as FundOwnerKey[]) {
+    const record = await loadBudgetRecord(owner)
+    const amount = Number(record?.record?.amount)
+    if (Number.isFinite(amount) && amount >= 0) {
+      base[owner] = amount
+    }
+  }
+
+  return base
+}
+
+export function getBudgetForScope(budgets: Record<FundOwnerKey, number>, scope: FundOwnerKey | 'all') {
+  if (scope === 'all') {
+    return budgets.tony + budgets.louise + budgets.phat
+  }
+  return budgets[scope] || 0
+}
+
+export async function saveBudget(owner: FundOwnerKey, investBudget: number) {
+  await saveBudgetRecord(owner, investBudget)
+
+  if (owner !== 'tony') {
+    return
+  }
+
   const supabase = createAdminClient()
   const settings = await ensureSettingsRow()
   const { error } = await supabase

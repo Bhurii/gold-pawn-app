@@ -56,7 +56,7 @@ export default function PawnList() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const session = getSession()
-  const defaultScope: FundOwnerKey = session?.user_key || 'tony'
+  const defaultScope: 'all' | FundOwnerKey = canViewAllFunds(session) ? 'all' : (session?.user_key || 'tony')
   const [pawns, setPawns] = useState<PawnRow[]>([])
   const [adjustedMap, setAdjustedMap] = useState<Map<string, AdjustedInfo>>(new Map())
   const [loading, setLoading] = useState(true)
@@ -200,7 +200,10 @@ export default function PawnList() {
 
       {canViewAllFunds(session) && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          {getOwnerScopeOptions(session).map(({ value, label }) => (
+          {(canViewAllFunds(session)
+            ? [{ value: 'all' as const, label: 'ทั้งหมด' }, ...getOwnerScopeOptions(session).filter((item) => item.value !== 'all')]
+            : getOwnerScopeOptions(session)
+          ).map(({ value, label }) => (
             <button key={value} type="button" className="filter-chip" data-active={ownerScope === value} onClick={() => setOwnerScope(value)}>
               {label}
             </button>

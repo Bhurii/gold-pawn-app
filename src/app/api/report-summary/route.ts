@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/server/admin'
 import { applyFundScopeFilter, resolveFundScope } from '@/lib/server/fund-access'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 import { getOrSetMemoryCache } from '@/lib/server/memory-cache'
+import { getBudgetForScope, loadBudgetState } from '@/lib/server/settings-store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,19 +45,19 @@ export async function GET(request: NextRequest) {
     }
 
     const [
-      { data: settings },
       { data: interests },
       { data: redemptions },
       { data: loanTxns },
       { data: pawns },
       { data: loans },
+      budgets,
     ] = await Promise.all([
-      supabase.from('settings').select('invest_budget').order('updated_at', { ascending: false }).limit(1).maybeSingle(),
       interestsQuery,
       redemptionsQuery,
       loanTxQuery,
       pawnsQuery,
       loansQuery,
+      loadBudgetState(),
     ])
 
     const monthlyData = Array.from({ length: 12 }, () => 0)
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     }
 
     return {
-      budget: Number(settings?.invest_budget || 0),
+      budget: getBudgetForScope(budgets, ownerScope),
       activePawnsAmount: (pawns || []).reduce((sum, pawn) => sum + Number(pawn.amount || 0), 0),
       activeLoansAmount: (loans || []).reduce((sum, loan) => sum + Number(loan.remaining_principal || 0), 0),
       monthlyData,
