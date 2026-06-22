@@ -33,16 +33,25 @@ export function useToast() {
 export default function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const nextId = useRef(1)
+  const lastToastRef = useRef<{ signature: string; ts: number } | null>(null)
 
   const dismissToast = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id))
   }, [])
 
   const showToast = useCallback((input: ToastInput) => {
+    const tone = input.tone || 'info'
+    const signature = `${tone}:${input.title || ''}:${input.message}`
+    const now = Date.now()
+    if (lastToastRef.current && lastToastRef.current.signature === signature && now - lastToastRef.current.ts < 1200) {
+      return
+    }
+    lastToastRef.current = { signature, ts: now }
+
     const id = nextId.current++
     const toast: ToastItem = {
       id,
-      tone: input.tone || 'info',
+      tone,
       title: input.title,
       message: input.message,
     }

@@ -12,6 +12,8 @@ interface Props {
   onViewImg: (url: string) => void
   onUploadPawnSlip: (file: File) => void
   onUploadInterestSlip: (interestId: string, file: File) => void
+  onEditInterest: (interest: any) => void
+  onDeleteInterest: (interest: any) => void
   onUploadRedemptionSlip: (column: 'pawn_slip_url' | 'transfer_slip_url', folder: string, file: File) => void
   onConfirmTransfer: (file: File) => void
   onBypassCash: () => void
@@ -98,6 +100,8 @@ export default function PawnChecklist({
   onViewImg,
   onUploadPawnSlip,
   onUploadInterestSlip,
+  onEditInterest,
+  onDeleteInterest,
   onUploadRedemptionSlip,
   onConfirmTransfer,
   onBypassCash,
@@ -116,7 +120,7 @@ export default function PawnChecklist({
   const hasTicket = !!pawn.pawn_slip_url
   const hasTransfer = transferSlips.length > 0 || pawn.tx_status === 'active'
   const isPendingTransfer = pawn.tx_status === 'pending_transfer'
-  const totalInterest = interests.reduce((sum: number, item: any) => sum + item.amount, 0)
+  const totalInterest = interests.reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0)
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -195,11 +199,26 @@ export default function PawnChecklist({
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>ครั้งที่ {index + 1}</div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{toThaiDateShort(item.payment_date)}</div>
+                      {item.note ? <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{item.note}</div> : null}
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold-light)' }}>+฿{fmt(item.amount)}</div>
                   </div>
-                  {!item.slip_url && (
-                    <div style={{ marginTop: 10 }}>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => onEditInterest(item)}
+                      style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid var(--border-hover)', background: 'rgba(242,201,76,0.08)', color: 'var(--gold-light)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      แก้ไข
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteInterest(item)}
+                      style={{ padding: '8px 10px', borderRadius: 10, border: '1px solid rgba(210,89,89,0.35)', background: 'rgba(210,89,89,0.08)', color: '#FFB4B4', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      ลบ
+                    </button>
+                    {!item.slip_url ? (
                       <button
                         type="button"
                         onClick={() => setExpandedInterestUploadId(expandedInterestUploadId === item.id ? '' : item.id)}
@@ -207,13 +226,13 @@ export default function PawnChecklist({
                       >
                         เพิ่มสลิปย้อนหลัง
                       </button>
-                      {expandedInterestUploadId === item.id && (
-                        <div style={{ marginTop: 10 }}>
-                          <UploadButtons onSelect={(file) => onUploadInterestSlip(item.id, file)} busy={uploadingDocKey === `interest_${item.id}`} />
-                        </div>
-                      )}
+                    ) : null}
+                  </div>
+                  {!item.slip_url && expandedInterestUploadId === item.id ? (
+                    <div style={{ marginTop: 10 }}>
+                      <UploadButtons onSelect={(file) => onUploadInterestSlip(item.id, file)} busy={uploadingDocKey === `interest_${item.id}`} />
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid rgba(242,201,76,0.2)' }}>
@@ -228,7 +247,7 @@ export default function PawnChecklist({
       )}
 
       {redemption && (
-        <ExpandRow done={true} pending={false} label={`🐣 ไถ่ถอนแล้ว · ${toThaiDateShort(redemption.redeem_date)}`} expanded={expandRedeem} onToggle={() => setExpandRedeem(!expandRedeem)}>
+        <ExpandRow done={true} pending={false} label={`🐣 ไถ่ถอนไปแล้ว · ${toThaiDateShort(redemption.redeem_date)}`} expanded={expandRedeem} onToggle={() => setExpandRedeem(!expandRedeem)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
             <span style={{ color: 'var(--text-muted)' }}>ดอกรวม</span>
             <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption.interest_total)}</span>
@@ -269,16 +288,16 @@ export default function PawnChecklist({
               </div>
             )}
           </div>
-          {expandedRedeemUploadKey === 'pawn_slip_url' && !redemption.pawn_slip_url && (
+          {expandedRedeemUploadKey === 'pawn_slip_url' && !redemption.pawn_slip_url ? (
             <div style={{ marginTop: 10 }}>
               <UploadButtons onSelect={(file) => onUploadRedemptionSlip('pawn_slip_url', 'redeem-pawn', file)} busy={uploadingDocKey === 'redemption_pawn_slip_url'} />
             </div>
-          )}
-          {expandedRedeemUploadKey === 'transfer_slip_url' && !redemption.transfer_slip_url && (
+          ) : null}
+          {expandedRedeemUploadKey === 'transfer_slip_url' && !redemption.transfer_slip_url ? (
             <div style={{ marginTop: 10 }}>
               <UploadButtons onSelect={(file) => onUploadRedemptionSlip('transfer_slip_url', 'redeem-transfer', file)} busy={uploadingDocKey === 'redemption_transfer_slip_url'} />
             </div>
-          )}
+          ) : null}
         </ExpandRow>
       )}
     </div>

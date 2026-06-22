@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/server/admin'
+import { selectActionAudits, type ActionAuditRow } from '@/lib/action-audit'
 
 export type LoanRow = {
   id: string
@@ -23,6 +24,7 @@ export type LoanTxnRow = {
 export type LoanDetailData = {
   loan: LoanRow | null
   txns: LoanTxnRow[]
+  audits: ActionAuditRow[]
 }
 
 export async function fetchLoanDetail(id: string): Promise<LoanDetailData> {
@@ -36,19 +38,26 @@ export async function fetchLoanDetail(id: string): Promise<LoanDetailData> {
 
   if (loanError) throw loanError
   if (!loan) {
-    return { loan: null, txns: [] }
+    return { loan: null, txns: [], audits: [] }
   }
 
-  const { data: txns, error: txnError } = await supabase
-    .from('loan_transactions')
-    .select('id, type, amount, transaction_date, slip_url, note')
-    .eq('loan_id', id)
-    .order('transaction_date')
+  const [
+    { data: txns, error: txnError },
+    { data: audits, error: auditsError },
+  ] = await Promise.all([
+    supabase
+      .from('loan_transactions')
+      .select('id, type, amount, transaction_date, slip_url, note')
+      .eq('loan_id', id)
+      .order('transaction_date'),
+    selectActionAudits(supabase, 'loan', id),
+  ])
 
-  if (txnError) throw txnError
+  if (txnError || auditsError) throw txnError || auditsError
 
   return {
     loan,
     txns: txns || [],
+    audits: audits || [],
   }
 }

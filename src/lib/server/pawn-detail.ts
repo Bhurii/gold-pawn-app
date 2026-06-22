@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/server/admin'
+import { selectActionAudits, type ActionAuditRow } from '@/lib/action-audit'
 
 export type LinkPawn = {
   id?: string
@@ -28,6 +29,7 @@ export type InterestRow = {
   payment_date: string
   amount: number
   slip_url: string | null
+  note?: string | null
 }
 
 export type RedemptionRow = {
@@ -53,6 +55,7 @@ export type PawnDetailData = {
   interests: InterestRow[]
   redemption: RedemptionRow | null
   transferSlips: TransferSlipRow[]
+  audits: ActionAuditRow[]
 }
 
 export async function fetchPawnDetail(id: string): Promise<PawnDetailData> {
@@ -73,6 +76,7 @@ export async function fetchPawnDetail(id: string): Promise<PawnDetailData> {
       interests: [],
       redemption: null,
       transferSlips: [],
+      audits: [],
     }
   }
 
@@ -82,17 +86,19 @@ export async function fetchPawnDetail(id: string): Promise<PawnDetailData> {
     { data: interests, error: interestsError },
     { data: redemption, error: redemptionError },
     { data: transferSlips, error: transferSlipsError },
+    { data: audits, error: auditsError },
   ] = await Promise.all([
     pawn.renewed_from_id
       ? supabase.from('pawns').select('id, ticket_no, amount, pawn_date').eq('id', pawn.renewed_from_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     supabase.from('pawns').select('id, ticket_no, amount, renewal_principal_paid').eq('renewed_from_id', pawn.id).maybeSingle(),
-    supabase.from('interest_payments').select('id, payment_date, amount, slip_url').eq('pawn_id', id).order('payment_date'),
+    supabase.from('interest_payments').select('id, payment_date, amount, slip_url, note').eq('pawn_id', id).order('payment_date'),
     supabase.from('redemptions').select('id, redeem_date, interest_total, pawn_slip_url, transfer_slip_url').eq('pawn_id', id).maybeSingle(),
     supabase.from('transfer_slips').select('id, direction, slip_url, amount, created_at').eq('pawn_id', id).order('created_at'),
+    selectActionAudits(supabase, 'pawn', id),
   ])
 
-  const firstError = renewedFromError || renewedToError || interestsError || redemptionError || transferSlipsError
+  const firstError = renewedFromError || renewedToError || interestsError || redemptionError || transferSlipsError || auditsError
   if (firstError) throw firstError
 
   return {
@@ -102,5 +108,6 @@ export async function fetchPawnDetail(id: string): Promise<PawnDetailData> {
     interests: interests || [],
     redemption: redemption || null,
     transferSlips: transferSlips || [],
+    audits: audits || [],
   }
 }
