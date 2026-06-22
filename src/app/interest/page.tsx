@@ -60,26 +60,32 @@ function InterestContent() {
   async function loadPawns() {
     setLoadingPawns(true)
     try {
-      const params = new URLSearchParams()
       if (pawnIdFromUrl) {
-        params.set('id', pawnIdFromUrl)
+        const response = await fetch(`/api/pawns/${encodeURIComponent(pawnIdFromUrl)}`, { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok) {
+          throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+        }
+
+        const row = (payload?.pawn || null) as PawnRow | null
+        setPawns(row ? [row] : [])
+        setSelected(row)
       } else {
-        params.set('filter', 'active')
-        params.set('tx_status', 'active')
-      }
+        const params = new URLSearchParams({
+          filter: 'active',
+          tx_status: 'active',
+        })
+        const response = await fetch(`/api/pawns?${params.toString()}`, { cache: 'no-store' })
+        const payload = await response.json()
+        if (!response.ok) {
+          throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+        }
 
-      const response = await fetch(`/api/pawns?${params.toString()}`, { cache: 'no-store' })
-      const payload = await response.json()
-      if (!response.ok) {
-        throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+        setPawns((payload?.pawns || []) as PawnRow[])
       }
-
-      const rows = (payload?.pawns || []) as PawnRow[]
-      setPawns(rows)
-      if (pawnIdFromUrl) setSelected(rows[0] || null)
     } catch {
       setPawns([])
-      if (pawnIdFromUrl) setSelected(null)
+      setSelected(null)
     } finally {
       setLoadingPawns(false)
     }
@@ -191,6 +197,12 @@ function InterestContent() {
                 {selected.fund_owner && <OwnerBadge owner={selected.fund_owner} />}
               </div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)' }}>฿{fmt(selected.amount)}</div>
+            </div>
+          )}
+
+          {pawnIdFromUrl && !selected && (
+            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>
+              ไม่พบตั๋วนี้ หรือคุณไม่มีสิทธิ์ดูรายการนี้
             </div>
           )}
 

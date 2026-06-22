@@ -89,7 +89,6 @@ export default function PawnList() {
 
   useEffect(() => {
     setFilter(normalizeFilter(searchParams.get('filter')))
-    setSearch(searchParams.get('search') || '')
     const nextScope = searchParams.get('owner_scope')
     if ((nextScope === 'all' && canViewAll) || isFundOwnerKey(nextScope)) {
       setOwnerScope(nextScope)

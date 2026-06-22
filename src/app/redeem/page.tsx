@@ -2,14 +2,11 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
-import { toThaiDateShort, fmt } from '@/lib/utils'
-import { uploadSlip } from '@/lib/slip-storage'
+import { type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
+import { uploadSlip } from '@/lib/slip-storage'
+import { fmt, toThaiDateShort } from '@/lib/utils'
 import { errorMessage, parseNonNegativeMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -54,13 +51,15 @@ function RedeemContent() {
   async function loadPawnById(pawnId: string) {
     setLoadingPawn(true)
     try {
-      const response = await fetch(`/api/pawns?id=${encodeURIComponent(pawnId)}`, { cache: 'no-store' })
+      const response = await fetch(`/api/pawns/${encodeURIComponent(pawnId)}`, { cache: 'no-store' })
       const payload = await response.json()
-      if (response.ok && payload?.pawns?.[0]) {
-        const pawn = payload.pawns[0] as PawnRow
+      if (response.ok && payload?.pawn) {
+        const pawn = payload.pawn as PawnRow
         setSelected(pawn)
         await loadInterests(pawn.id)
         setStep('upload')
+      } else {
+        setSelected(null)
       }
     } finally {
       setLoadingPawn(false)
@@ -93,10 +92,6 @@ function RedeemContent() {
     setStep('upload')
   }
 
-  async function uploadImage(file: File, folder: string) {
-    return uploadSlip(file, folder)
-  }
-
   async function handleSave() {
     if (!selected || !form.redeem_date) {
       showToast({ tone: 'error', title: 'ข้อมูลยังไม่ครบ', message: 'กรุณากรอกข้อมูลให้ครบ' })
@@ -105,36 +100,35 @@ function RedeemContent() {
 
     setSaving(true)
     try {
-      const pawnSlipUrl = pawnImage ? await uploadImage(pawnImage, 'redeem-pawn') : ''
-      const transferSlipUrl = transferImage ? await uploadImage(transferImage, 'redeem-transfer') : ''
+      const pawnSlipUrl = pawnImage ? await uploadSlip(pawnImage, 'redeem-pawn') : ''
+      const transferSlipUrl = transferImage ? await uploadSlip(transferImage, 'redeem-transfer') : ''
       const redeemDate = requireDate(form.redeem_date, 'Redeem date')
       const interestLast = parseNonNegativeMoney(form.interest_last, 'Last interest')
       const interestPaid = interestPayments.reduce((sum, item) => sum + item.amount, 0)
       const interestTotal = interestPaid + interestLast
 
-      const { data: redemption, error } = await supabase.from('redemptions').insert({
-        pawn_id: selected.id,
-        redeem_date: redeemDate,
-        interest_last: interestLast,
-        interest_total: interestTotal,
-        total_return: selected.amount + interestTotal,
-        pawn_slip_url: pawnSlipUrl,
-        transfer_slip_url: transferSlipUrl,
-        status: 'pending_confirm',
-      }).select('id').single()
-      if (error) throw error
-
-      const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'pending_redeem' }).eq('id', selected.id)
-      assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
-      const notificationInsert = await supabase.from('notifications').insert({
-        type: 'redeem_pending',
-        message: `มีรายการไถ่ถอน ตั๋ว #${selected.ticket_no} ดอก ฿${fmt(interestTotal)} รอยืนยัน`,
-        pawn_id: selected.id,
-        action_url: createNotificationAction(`/redeem/confirm/${redemption.id}`, [...getNotificationRecipientsForFundOwner(selected.fund_owner || 'tony')]),
+      const response = await fetch('/api/pawn-workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'redeem',
+          pawn_id: selected.id,
+          ticket_no: selected.ticket_no,
+          fund_owner: selected.fund_owner || 'tony',
+          redeem_date: redeemDate,
+          interest_last: interestLast,
+          interest_total: interestTotal,
+          total_return: selected.amount + interestTotal,
+          pawn_slip_url: pawnSlipUrl,
+          transfer_slip_url: transferSlipUrl,
+        }),
       })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
-      await pingPushDispatch()
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการไถ่ถอนไม่สำเร็จ')
+      }
 
+      await pingPushDispatch()
       showToast({ tone: 'success', title: 'ส่งคำขอแล้ว', message: 'รอยืนยันการไถ่ถอน' })
       router.push('/')
     } catch (e) {
@@ -188,11 +182,15 @@ function RedeemContent() {
     )
   }
 
+  if (!selected) {
+    return <main className="page-container"><div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูลตั๋ว</div></main>
+  }
+
   return (
     <main className="page-container">
       <div style={{ padding: '56px 0 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => (pawnIdFromUrl && selected ? router.push(`/pawns/${selected.id}`) : setStep('select'))} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
-        <div style={{ fontSize: 20, fontWeight: 800 }}>ไถ่ถอน #{selected?.ticket_no}</div>
+        <button onClick={() => (pawnIdFromUrl ? router.push(`/pawns/${selected.id}`) : setStep('select'))} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: 26, cursor: 'pointer' }}>←</button>
+        <div style={{ fontSize: 20, fontWeight: 800 }}>ไถ่ถอน #{selected.ticket_no}</div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -206,7 +204,7 @@ function RedeemContent() {
 
       <div className="panel-gold" style={{ borderRadius: 18, padding: 18, marginBottom: 16 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>เงินต้น</div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(selected?.amount || 0)}</div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(selected.amount)}</div>
         {interestPayments.length > 0 && (
           <div style={{ fontSize: 13, color: 'var(--gold-light)', marginTop: 6 }}>
             ตัดดอกแล้ว {interestPayments.length} ครั้ง รวม ฿{fmt(interestPaid)}
@@ -258,21 +256,27 @@ function RedeemContent() {
       <input className="input-field" type="date" value={form.redeem_date} onChange={(e) => setForm({ ...form, redeem_date: e.target.value })} style={{ marginBottom: 16 }} />
 
       <div className="card" style={{ background: '#0A0A0A', borderRadius: 16, padding: 18, marginBottom: 20 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>สรุปดอกรวม</div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 8 }}>
-          <span>ตัดดอกแล้ว</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestPaid)}</span>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>สรุปยอด</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span>เงินต้น</span>
+          <strong>฿{fmt(selected.amount)}</strong>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          <span>ดอกงวดสุดท้าย</span><span style={{ color: 'var(--gold-light)' }}>฿{fmt(interestLast)}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span>ดอกที่ตัดไปแล้ว</span>
+          <strong>฿{fmt(interestPaid)}</strong>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 800, borderTop: '0.5px solid rgba(242,201,76,0.2)', paddingTop: 12 }}>
-          <span style={{ color: 'var(--text-muted)' }}>ดอกรวมทั้งหมด</span>
-          <span style={{ color: 'var(--gold)' }}>฿{fmt(interestTotal)}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span>ดอกงวดสุดท้าย</span>
+          <strong>฿{fmt(interestLast)}</strong>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--gold)', fontWeight: 800, fontSize: 18 }}>
+          <span>รวมดอกทั้งหมด</span>
+          <span>฿{fmt(interestTotal)}</span>
         </div>
       </div>
 
       <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-        {saving ? 'กำลังบันทึก...' : 'ส่งรอยืนยันไถ่ถอน'}
+        {saving ? 'กำลังบันทึก...' : 'ส่งรายการไถ่ถอน'}
       </button>
       <div style={{ height: 32 }} />
     </main>

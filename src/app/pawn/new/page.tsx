@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
-import { createNotificationAction } from '@/lib/notification-meta'
 import { getSession } from '@/lib/auth'
-import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
-import { toThaiDateShort, toThaiDateLong, fmt } from '@/lib/utils'
-import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { FUND_OWNER_BADGES, getAccessibleFundOwners, getDefaultFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
+import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
+import { fmt, toThaiDateLong, toThaiDateShort } from '@/lib/utils'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type ExistingPawn = {
@@ -52,7 +49,7 @@ export default function NewPawn() {
 
     const timer = window.setTimeout(() => {
       void checkExisting(ticketNo)
-    }, 300)
+    }, 250)
 
     return () => window.clearTimeout(timer)
   }, [form.ticket_no])
@@ -73,6 +70,15 @@ export default function NewPawn() {
     setPreview(URL.createObjectURL(file))
     setExistingPawn(null)
     void scanImage(file)
+  }
+
+  function toBase64(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve((reader.result as string).split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
   }
 
   async function scanImage(file: File) {
@@ -109,21 +115,15 @@ export default function NewPawn() {
   }
 
   async function checkExisting(ticketNo: string) {
-    const { data } = await supabase
-      .from('pawns')
-      .select('id, ticket_no, pawn_date, amount, status, tx_status, fund_owner')
-      .eq('ticket_no', ticketNo)
-      .maybeSingle()
-    setExistingPawn((data as ExistingPawn | null) || null)
-  }
-
-  function toBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve((reader.result as string).split(',')[1])
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
+    try {
+      const response = await fetch(`/api/pawns?search=${encodeURIComponent(ticketNo)}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+      const match = ((payload?.pawns || []) as ExistingPawn[]).find((pawn) => pawn.ticket_no === ticketNo) || null
+      setExistingPawn(match)
+    } catch {
+      setExistingPawn(null)
+    }
   }
 
   async function handleSave() {
@@ -137,28 +137,27 @@ export default function NewPawn() {
       const amount = parsePositiveMoney(form.amount, 'Pawn amount')
       const pawnDate = requireDate(form.pawn_date, 'Pawn date')
       const slipUrl = image ? await uploadSlip(image, 'pawns') : ''
-      const { data: pawn, error } = await supabase.from('pawns').insert({
-        ticket_no: form.ticket_no,
-        pawn_date: pawnDate,
-        amount,
-        fund_owner: fundOwner,
-        pawn_slip_url: slipUrl,
-        status: 'active',
-        tx_status: 'pending_transfer',
-      }).select().single()
-      if (error) throw error
 
-      const notificationInsert = await supabase.from('notifications').insert({
-        type: 'pawn_created',
-        message: `มีรายการรับจำนำใหม่ ตั๋ว #${form.ticket_no} ฿${amount.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]} รอโอนเงิน`,
-        pawn_id: pawn.id,
-        action_url: createNotificationAction(`/pawns/${pawn.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
+      const response = await fetch('/api/pawn-workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_pawn',
+          ticket_no: form.ticket_no,
+          pawn_date: pawnDate,
+          amount,
+          fund_owner: fundOwner,
+          pawn_slip_url: slipUrl,
+        }),
       })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
-      await pingPushDispatch()
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการรับจำนำไม่สำเร็จ')
+      }
 
+      await pingPushDispatch()
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'รอโอนเงินให้รายการนี้' })
-      router.push(`/pawns/${pawn.id}`)
+      router.push(`/pawns/${payload.pawnId}`)
     } catch (e) {
       showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
     } finally {
@@ -179,7 +178,7 @@ export default function NewPawn() {
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>Step 1/2</div>
       </div>
       <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
-        อัปตั๋ว {'->'} AI อ่านข้อมูล {'->'} รอโอนเงิน
+        อัปตั๋ว → AI อ่านข้อมูล → รอโอนเงิน
       </div>
 
       {availableOwners.length > 1 && (
@@ -197,7 +196,7 @@ export default function NewPawn() {
 
       {preview ? (
         <div style={{ marginBottom: 16, position: 'relative' }}>
-          <img src={preview} alt="slip" style={{ width: '100%', borderRadius: 16, maxHeight: 260, objectFit: 'contain', background: 'var(--black-700)' }} />
+          <img src={preview} alt="ticket" style={{ width: '100%', borderRadius: 16, maxHeight: 260, objectFit: 'contain', background: 'var(--black-700)' }} />
           <button onClick={() => { setPreview(''); setImage(null); setScanned(false); setExistingPawn(null) }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 32, height: 32, cursor: 'pointer', fontSize: 16 }}>×</button>
         </div>
       ) : (
@@ -227,8 +226,7 @@ export default function NewPawn() {
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gold)', marginBottom: 10 }}>ตั๋วนี้มีในระบบแล้ว</div>
           <div style={{ fontSize: 15, marginBottom: 4 }}>ตั๋ว #{existingPawn.ticket_no} · ฿{fmt(existingPawn.amount)}</div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>{toThaiDateShort(existingPawn.pawn_date)}</div>
-          {existingPawn.fund_owner && <div style={{ fontSize: 13, color: 'var(--gold-light)', marginBottom: 16 }}>{FUND_OWNER_BADGES[existingPawn.fund_owner]}</div>}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginTop: 16 }}>
             <button onClick={() => router.push(`/pawns/${existingPawn.id}`)} style={{ padding: '10px 8px', borderRadius: 12, border: '1px solid var(--border-hover)', background: 'transparent', color: 'var(--gold)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               ดูข้อมูล
             </button>
@@ -259,29 +257,23 @@ export default function NewPawn() {
         <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>
-              <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>เลขที่ตั๋ว</div>
-              <input className="input-field" placeholder="เช่น 23779" value={form.ticket_no} onChange={(e) => setForm({ ...form, ticket_no: e.target.value })} />
+              <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>เลขตั๋ว</div>
+              <input className="input-field" placeholder="เช่น 23909" value={form.ticket_no} onChange={(e) => setForm({ ...form, ticket_no: e.target.value })} />
             </div>
             <div>
               <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่จำนำ</div>
               <input className="input-field" type="date" value={form.pawn_date} onChange={(e) => setForm({ ...form, pawn_date: e.target.value })} />
-              {form.pawn_date && (
-                <div style={{ background: 'rgba(242,201,76,0.12)', border: '0.5px solid var(--border-hover)', borderRadius: 10, padding: '8px 14px', marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>📅</span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--gold)' }}>{toThaiDateLong(form.pawn_date)}</span>
-                </div>
-              )}
+              {form.pawn_date && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{toThaiDateLong(form.pawn_date)}</div>}
             </div>
             <div>
-              <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>จำนวนเงิน (บาท)</div>
-              <input className="input-field" type="number" placeholder="เช่น 31000" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+              <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>ยอดเงิน</div>
+              <input className="input-field" type="number" placeholder="เช่น 45000" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
             </div>
           </div>
-          <div style={{ marginTop: 24 }}>
-            <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18 }}>
-              {saving ? 'กำลังบันทึก...' : `บันทึกรับจำนำ ${FUND_OWNER_LABELS[fundOwner]}`}
-            </button>
-          </div>
+
+          <button className="btn-primary" onClick={handleSave} disabled={saving} style={{ fontSize: 18, marginTop: 20 }}>
+            {saving ? 'กำลังบันทึก...' : 'บันทึกรับจำนำ'}
+          </button>
         </>
       )}
       <div style={{ height: 32 }} />

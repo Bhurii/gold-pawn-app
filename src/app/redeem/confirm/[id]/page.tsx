@@ -2,14 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { getSession } from '@/lib/auth'
-import { toThaiDateLong, fmt } from '@/lib/utils'
+import { type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
+import { fmt, toThaiDateLong } from '@/lib/utils'
 import { errorMessage } from '@/lib/validation'
 
 type RedemptionRow = {
@@ -48,42 +45,42 @@ export default function ConfirmRedeem() {
   }, [])
 
   async function loadData() {
-    const { data: redeemData } = await supabase
-      .from('redemptions')
-      .select('id, pawn_id, redeem_date, interest_total, pawn_slip_url, transfer_slip_url')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (redeemData) {
-      const redemptionRow = redeemData as RedemptionRow
-      setRedemption(redemptionRow)
-
-      const { data: pawnData } = await supabase
-        .from('pawns')
-        .select('id, ticket_no, amount, fund_owner')
-        .eq('id', redemptionRow.pawn_id)
-        .maybeSingle()
-
-      if (pawnData) setPawn(pawnData as PawnRow)
+    try {
+      const response = await fetch(`/api/pawns/${encodeURIComponent(String(id))}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+      }
+      setPawn((payload?.pawn as PawnRow | null) || null)
+      setRedemption((payload?.redemption as RedemptionRow | null) || null)
+    } catch {
+      setPawn(null)
+      setRedemption(null)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function handleConfirm() {
-    if (!redemption) return
+    if (!redemption || !pawn) return
     setConfirming(true)
     try {
-      const redemptionUpdate = await supabase.from('redemptions').update({ status: 'confirmed' }).eq('id', id)
-      assertSupabaseMutation(redemptionUpdate, 'ยืนยันไถ่ถอนไม่สำเร็จ')
-      const pawnUpdate = await supabase.from('pawns').update({ status: 'redeemed', tx_status: 'redeemed' }).eq('id', redemption.pawn_id)
-      assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
-      const notificationInsert = await supabase.from('notifications').insert({
-        type: 'redeem_confirmed',
-        message: `ยืนยันไถ่ถอนแล้ว ตั๋ว #${pawn?.ticket_no}`,
-        pawn_id: redemption.pawn_id,
-        action_url: createNotificationAction(`/pawns/${redemption.pawn_id}`, [...getNotificationRecipientsForFundOwner(pawn?.fund_owner || 'tony')]),
+      const response = await fetch('/api/pawn-workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'confirm_redeem',
+          redemption_id: redemption.id,
+          pawn_id: redemption.pawn_id,
+          ticket_no: pawn.ticket_no,
+          fund_owner: pawn.fund_owner || 'tony',
+        }),
       })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'ยืนยันไถ่ถอนไม่สำเร็จ')
+      }
+
       await pingPushDispatch()
       showToast({ tone: 'success', title: 'ยืนยันสำเร็จ', message: 'ไถ่ถอนเรียบร้อยแล้ว' })
       router.replace('/')
@@ -95,8 +92,9 @@ export default function ConfirmRedeem() {
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
+  if (!redemption || !pawn) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูลรายการไถ่ถอน</div>
 
-  const backTarget = pawn ? `/pawns/${pawn.id}` : '/pawns'
+  const backTarget = `/pawns/${pawn.id}`
 
   return (
     <main className="page-container">
@@ -120,19 +118,19 @@ export default function ConfirmRedeem() {
       <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>ตรวจสอบข้อมูลแล้วกดยืนยัน</div>
 
       <div className="panel-gold" style={{ padding: 20, marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ตั๋ว #{pawn?.ticket_no}</div>
-        <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(pawn?.amount || 0)}</div>
-        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>วันที่คืน: {toThaiDateLong(redemption?.redeem_date || '')}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>ตั๋ว #{pawn.ticket_no}</div>
+        <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--gold)', marginBottom: 4 }}>฿{fmt(pawn.amount)}</div>
+        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>วันที่คืน: {toThaiDateLong(redemption.redeem_date)}</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
           <span>ดอกรวมทั้งหมด</span>
-          <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption?.interest_total || 0)}</span>
+          <span style={{ color: 'var(--gold-light)', fontWeight: 700 }}>+฿{fmt(redemption.interest_total)}</span>
         </div>
       </div>
 
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>หลักฐานจากเจ้หลุย</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          {redemption?.pawn_slip_url ? (
+          {redemption.pawn_slip_url ? (
             <div onClick={() => setViewImg(redemption.pawn_slip_url || '')} style={{ cursor: 'pointer' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>ตั๋วจำนำ</div>
               <div style={{ position: 'relative' }}>
@@ -141,7 +139,7 @@ export default function ConfirmRedeem() {
               </div>
             </div>
           ) : <div style={{ color: 'var(--text-muted)', fontSize: 13, display: 'flex', alignItems: 'center' }}>ไม่มีรูปตั๋ว</div>}
-          {redemption?.transfer_slip_url ? (
+          {redemption.transfer_slip_url ? (
             <div onClick={() => setViewImg(redemption.transfer_slip_url || '')} style={{ cursor: 'pointer' }}>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>สลิปโอนเงิน</div>
               <div style={{ position: 'relative' }}>

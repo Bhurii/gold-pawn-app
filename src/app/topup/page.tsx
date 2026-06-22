@@ -2,15 +2,12 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import { useToast } from '@/components/ToastProvider'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
-import { toThaiDateLong, fmt } from '@/lib/utils'
-import ThaiDatePicker from '@/components/ThaiDatePicker'
-import { uploadSlip } from '@/lib/slip-storage'
+import { type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
+import { uploadSlip } from '@/lib/slip-storage'
+import ThaiDatePicker from '@/components/ThaiDatePicker'
+import { fmt, toThaiDateLong } from '@/lib/utils'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type PawnRow = {
@@ -32,9 +29,6 @@ type OcrTicketData = {
 
 type TransferOcrData = {
   amount?: number
-  transfer_date?: string
-  transfer_time?: string
-  receiver_name?: string
   notes?: string
 }
 
@@ -66,15 +60,21 @@ function TopupContent() {
   })
 
   useEffect(() => {
-    if (pawnIdFromUrl) {
-      void loadPawn(pawnIdFromUrl)
-    }
+    if (pawnIdFromUrl) void loadPawn(pawnIdFromUrl)
   }, [pawnIdFromUrl])
 
   async function loadPawn(id: string) {
-    const { data } = await supabase.from('pawns').select('id, ticket_no, pawn_date, amount, notes, fund_owner').eq('id', id).maybeSingle()
-    if (data) setPawn(data as PawnRow)
-    setLoading(false)
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/pawns/${encodeURIComponent(id)}`, { cache: 'no-store' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
+      setPawn((payload?.pawn as PawnRow | null) || null)
+    } catch {
+      setPawn(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
   function toBase64(file: File): Promise<string> {
@@ -95,7 +95,6 @@ function TopupContent() {
     } else {
       setTicketOcrAmount(null)
     }
-
     if (scan.pawn_date) {
       setForm((current) => ({ ...current, new_date: scan.pawn_date || current.new_date }))
     }
@@ -160,10 +159,6 @@ function TopupContent() {
     }
   }
 
-  async function uploadImage(file: File, folder: string) {
-    return uploadSlip(file, folder)
-  }
-
   async function handleSave() {
     if (!pawn) return
     if (!form.new_ticket_no) {
@@ -185,66 +180,36 @@ function TopupContent() {
       const topupAmount = parsePositiveMoney(form.topup_amount, 'Top-up amount')
       const newDate = requireDate(form.new_date, 'New ticket date')
       const newAmount = pawn.amount + topupAmount
+      const newTicketUrl = newTicketImage ? await uploadSlip(newTicketImage, 'pawns') : ''
+      const transferUrl = transferImage ? await uploadSlip(transferImage, 'transfer') : ''
 
-      const newTicketUrl = newTicketImage ? await uploadImage(newTicketImage, 'pawns') : ''
-      const transferUrl = transferImage ? await uploadImage(transferImage, 'transfer') : ''
-
-      const { data: newPawn, error } = await supabase.from('pawns').insert({
-        ticket_no: form.new_ticket_no,
-        pawn_date: newDate,
-        amount: newAmount,
-        fund_owner: pawn.fund_owner || 'tony',
-        pawn_slip_url: newTicketUrl,
-        status: 'active',
-        tx_status: 'pending_transfer',
-        renewed_from_id: pawn.id,
-        renewal_interest: interest,
-        renewal_principal_paid: -topupAmount,
-        notes: `ต่อจากตั๋ว #${pawn.ticket_no}`,
-      }).select().single()
-      if (error) throw error
-
-      const previousPawnUpdate = await supabase.from('pawns').update({
-        status: 'redeemed',
-        tx_status: 'redeemed',
-        notes: pawn.notes ? `${pawn.notes} | เพิ่มยอด -> ตั๋วใหม่ #${form.new_ticket_no}` : `เพิ่มยอด -> ตั๋วใหม่ #${form.new_ticket_no}`,
-      }).eq('id', pawn.id)
-      assertSupabaseMutation(previousPawnUpdate, 'อัปเดตตั๋วเดิมไม่สำเร็จ')
-
-      const redemptionInsert = await supabase.from('redemptions').insert({
-        pawn_id: pawn.id,
-        redeem_date: newDate,
-        interest_last: interest,
-        interest_total: interest,
-        total_return: pawn.amount + interest,
-        pawn_slip_url: newTicketUrl,
-        transfer_slip_url: transferUrl,
-        status: 'confirmed',
+      const response = await fetch('/api/pawn-workflow', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'topup',
+          pawn_id: pawn.id,
+          old_ticket_no: pawn.ticket_no,
+          old_amount: pawn.amount,
+          previous_notes: pawn.notes || '',
+          new_ticket_no: form.new_ticket_no,
+          new_date: newDate,
+          new_amount: newAmount,
+          interest,
+          topup_amount: topupAmount,
+          fund_owner: pawn.fund_owner || 'tony',
+          new_ticket_url: newTicketUrl,
+          transfer_url: transferUrl,
+        }),
       })
-      assertSupabaseMutation(redemptionInsert, 'บันทึกรายการเพิ่มยอดไม่สำเร็จ')
-
-      if (transferUrl) {
-        const transferInsert = await supabase.from('transfer_slips').insert({
-          pawn_id: newPawn.id,
-          direction: 'mom_to_me',
-          slip_url: transferUrl,
-          amount: topupAmount,
-          confirmed_at: new Date().toISOString(),
-        })
-        assertSupabaseMutation(transferInsert, 'บันทึกสลิปโอนเงินไม่สำเร็จ')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการเพิ่มยอดไม่สำเร็จ')
       }
 
-      const notificationInsert = await supabase.from('notifications').insert({
-        type: 'topup',
-        message: `เพิ่มยอดตั๋ว #${pawn.ticket_no} -> ตั๋วใหม่ #${form.new_ticket_no} ยอด ฿${fmt(newAmount)} รอโอนเงิน ฿${fmt(topupAmount)}`,
-        pawn_id: newPawn.id,
-        action_url: createNotificationAction(`/pawns/${newPawn.id}`, [...getNotificationRecipientsForFundOwner(pawn.fund_owner || 'tony')]),
-      })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
-
       showToast({ tone: 'success', title: 'เพิ่มยอดสำเร็จ', message: `ตั๋วใหม่ #${form.new_ticket_no}\nยอดใหม่ ฿${fmt(newAmount)}` })
-      router.replace(`/pawns/${newPawn.id}`)
+      router.replace(`/pawns/${payload.pawnId}`)
     } catch (e) {
       showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
     } finally {
@@ -253,7 +218,7 @@ function TopupContent() {
   }
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>กำลังโหลด...</div>
-  if (!pawn) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูล</div>
+  if (!pawn) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>ไม่พบข้อมูลตั๋ว</div>
 
   const interest = Number(form.interest) || 0
   const topupAmount = Number(form.topup_amount) || 0
@@ -318,53 +283,31 @@ function TopupContent() {
           value={form.new_date}
           onChange={(value) => {
             setForm({ ...form, new_date: value })
-            setDateConfidence('manual')
             setDateConfirmed(true)
-            setDateNote('ยืนยันวันที่ด้วยตนเองแล้ว')
+            setDateConfidence('manual')
+            setDateNote('')
           }}
-          label="วันที่ในตั๋วใหม่"
+          label="วันที่ออกตั๋วใหม่"
         />
 
-        {dateConfidence !== 'manual' && (
-          <div style={{ background: dateConfidence === 'suggested' ? 'rgba(242,201,76,0.08)' : 'rgba(242,201,76,0.05)', border: `1px solid ${dateConfidence === 'suggested' ? 'rgba(242,201,76,0.28)' : 'rgba(242,201,76,0.18)'}`, borderRadius: 14, padding: 14 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: dateConfidence === 'suggested' ? 'var(--gold)' : 'var(--gold-light)', marginBottom: 6 }}>
-              {dateConfidence === 'clear' ? 'AI อ่านวันที่บนตั๋วได้' : dateConfidence === 'suggested' ? 'AI แนะนำวันที่จากบริบท' : 'AI อ่านวันที่ไม่ชัด'}
+        {dateNote && (
+          <div className="card" style={{ padding: 14, borderColor: dateConfirmed ? 'rgba(242,201,76,0.22)' : 'rgba(242,201,76,0.4)' }}>
+            <div style={{ fontSize: 13, color: dateConfirmed ? 'var(--text-secondary)' : 'var(--gold-light)' }}>
+              {dateConfidence === 'suggested' ? 'วันที่คาดการณ์จาก AI' : dateConfidence === 'clear' ? 'AI อ่านวันที่ได้' : 'ต้องยืนยันวันที่'}: {dateNote}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 10 }}>{dateNote || 'กรุณาตรวจสอบวันที่ก่อนบันทึก'}</div>
-            {dateConfidence === 'suggested' && !dateConfirmed && (
-              <button type="button" className="btn-secondary" onClick={() => setDateConfirmed(true)} style={{ fontSize: 14 }}>
-                ใช้วันที่นี้
+            {!dateConfirmed && (
+              <button type="button" className="btn-secondary" style={{ marginTop: 10 }} onClick={() => setDateConfirmed(true)}>
+                ยืนยันวันที่นี้
               </button>
             )}
           </div>
         )}
 
-        <div className="card" style={{ background: '#0A0A0A', borderRadius: 14, padding: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            <span>ยอดต้นเดิม</span><span>฿{fmt(pawn.amount)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 6 }}>
-            <span>เพิ่มยอด</span><span style={{ color: 'var(--gold-light)' }}>+฿{fmt(topupAmount)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: 'var(--text-secondary)', marginBottom: 10 }}>
-            <span>ดอกที่เคลียร์</span><span style={{ color: 'var(--gold-soft)' }}>-฿{fmt(interest)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, fontWeight: 800, borderTop: '0.5px solid rgba(242,201,76,0.2)', paddingTop: 10 }}>
-            <span style={{ color: 'var(--text-muted)' }}>ยอดตั๋วใหม่</span>
-            <span style={{ color: 'var(--gold)' }}>฿{fmt(newAmount)}</span>
-          </div>
-          {ticketOcrAmount !== null && (
-            <div style={{ marginTop: 10, fontSize: 13, color: ticketAmountMismatch ? 'var(--danger-soft)' : 'var(--gold-light)' }}>
-              {ticketAmountMismatch ? `AI อ่านยอดจากรูปตั๋วได้ ฿${fmt(ticketOcrAmount)} ซึ่งไม่ตรงกับยอดใหม่ที่คำนวณ` : `AI อ่านยอดจากรูปตั๋วตรงกับยอดใหม่ ฿${fmt(ticketOcrAmount)}`}
-            </div>
-          )}
-        </div>
-
         <div>
-          <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>สลิปโอนเงินเพิ่ม</div>
+          <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>สลิปโอนเงิน (ถ้ามี)</div>
           {transferPreview ? (
-            <div style={{ position: 'relative' }}>
-              <img src={transferPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 180, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} alt="slip" />
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <img src={transferPreview} style={{ width: '100%', borderRadius: 14, maxHeight: 200, objectFit: 'contain', background: 'var(--black-700)', display: 'block' }} alt="transfer" />
               <button onClick={() => { setTransferPreview(''); setTransferImage(null); setTransferOcrAmount(null); setTransferOcrNote('') }} style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: 99, width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>×</button>
             </div>
           ) : (
@@ -379,27 +322,45 @@ function TopupContent() {
               </label>
             </div>
           )}
-          {topupAmount > 0 && (
-            <div style={{ fontSize: 13, color: 'var(--gold-soft)', marginTop: 8 }}>
-              ยอดที่ควรโอนเพิ่มตามงานนี้: ฿{fmt(topupAmount)}
-            </div>
-          )}
-          {transferOcrAmount !== null && (
-            <div style={{ fontSize: 13, color: transferAmountMismatch ? 'var(--danger-soft)' : 'var(--gold-light)', marginTop: 8 }}>
-              {transferAmountMismatch ? `OCR อ่านยอดสลิปได้ ฿${fmt(transferOcrAmount)} ซึ่งไม่ตรงกับยอดที่ควรโอน` : `OCR อ่านยอดสลิปตรงกับยอดที่ควรโอน ฿${fmt(transferOcrAmount)}`}
-            </div>
-          )}
-          {transferOcrAmount === null && transferOcrNote && (
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+          {transferOcrNote && (
+            <div style={{ marginTop: 8, fontSize: 12, color: transferAmountMismatch ? 'var(--danger-soft)' : 'var(--text-muted)' }}>
               {transferOcrNote}
             </div>
           )}
         </div>
-      </div>
 
-      <div style={{ marginTop: 24 }}>
-        <button className="btn-primary" onClick={handleSave} disabled={saving || topupAmount <= 0 || !dateConfirmed} style={{ fontSize: 18 }}>
-          {saving ? 'กำลังบันทึก...' : `ยืนยันเพิ่มยอด -> ตั๋วใหม่ ฿${fmt(newAmount)}`}
+        <div className="panel-gold" style={{ padding: 18 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>สรุปรายการ</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span>ยอดเดิม</span>
+            <strong>฿{fmt(pawn.amount)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span>เพิ่มยอด</span>
+            <strong>+฿{fmt(topupAmount)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span>ดอกที่เคลียร์</span>
+            <strong>฿{fmt(interest)}</strong>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18, color: 'var(--gold)', fontWeight: 800 }}>
+            <span>ยอดตั๋วใหม่</span>
+            <span>฿{fmt(newAmount)}</span>
+          </div>
+          {ticketAmountMismatch && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--danger-soft)' }}>
+              AI อ่านยอดในตั๋วใหม่เป็น ฿{fmt(ticketOcrAmount || 0)} ซึ่งไม่ตรงกับยอดที่คำนวณได้
+            </div>
+          )}
+          {transferAmountMismatch && (
+            <div style={{ marginTop: 10, fontSize: 12, color: 'var(--danger-soft)' }}>
+              AI อ่านยอดสลิปเป็น ฿{fmt(transferOcrAmount || 0)} แต่ยอดที่ควรโอนคือ ฿{fmt(topupAmount)}
+            </div>
+          )}
+        </div>
+
+        <button className="btn-primary" disabled={saving} onClick={handleSave} style={{ fontSize: 18 }}>
+          {saving ? 'กำลังบันทึก...' : `ยืนยันเพิ่มยอด → ตั๋วใหม่ ฿${fmt(newAmount)}`}
         </button>
       </div>
       <div style={{ height: 32 }} />
