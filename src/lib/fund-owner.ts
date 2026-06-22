@@ -60,7 +60,6 @@ export function getDefaultFundOwner(user?: Pick<AppUser, 'user_key'> | null): Fu
 
 export function getDefaultFundScope(user?: Pick<AppUser, 'user_key'> | null): FundOwnerKey | 'all' {
   if (!user) return 'tony'
-  if (user.user_key === 'louise') return 'all'
   return user.user_key
 }
 

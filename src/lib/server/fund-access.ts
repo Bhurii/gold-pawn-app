@@ -1,13 +1,12 @@
 import type { PostgrestFilterBuilder } from '@supabase/postgrest-js'
 import type { FundOwnerKey } from '@/lib/fund-owner'
-import { getAccessibleFundOwners, getDefaultFundScope, isFundOwnerKey } from '@/lib/fund-owner'
+import { canViewAllFunds, getAccessibleFundOwners, getDefaultFundScope, isFundOwnerKey } from '@/lib/fund-owner'
 import type { SessionUser } from '@/lib/server/app-session'
 
 export type FundScope = FundOwnerKey | 'all'
 
 export function resolveFundScope(user: SessionUser, requested: string | null): FundScope {
-  if (user.user_key === 'louise') return 'all'
-  if (requested === 'all' && user.user_key === 'tony') return 'all'
+  if (requested === 'all' && canViewAllFunds(user)) return 'all'
   if (isFundOwnerKey(requested) && getAccessibleFundOwners(user).includes(requested)) return requested
   return getDefaultFundScope(user)
 }
