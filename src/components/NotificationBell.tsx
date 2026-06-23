@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   enablePushNotifications,
+  getPushSessionUserKey,
   isIosDevice,
   isStandaloneMode,
   resolvePushState,
@@ -34,6 +35,7 @@ type NotificationCache = {
 }
 
 const CACHE_KEY = 'notification-bell:feed'
+const READ_KEY_PREFIX = 'notification-bell:read'
 const CACHE_TTL_MS = 30 * 1000
 
 function relativeTime(value: string) {
@@ -56,9 +58,11 @@ export default function NotificationBell() {
   const [iosInstallNeeded, setIosInstallNeeded] = useState(false)
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [pendingActions, setPendingActions] = useState<PendingActionItem[]>([])
+  const [readIds, setReadIds] = useState<string[]>([])
 
   const needsPushPrompt = pushState !== 'enabled'
-  const total = notifications.length + pendingActions.length
+  const unreadCount = notifications.filter((item) => !readIds.includes(item.id)).length
+  const total = unreadCount
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -71,6 +75,7 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const cacheStale = hydrateFromCache()
+    hydrateReadIds()
     setIosInstallNeeded(isIosDevice() && !isStandaloneMode())
 
     let staleTimer: ReturnType<typeof setTimeout> | null = null
@@ -102,8 +107,47 @@ export default function NotificationBell() {
   useEffect(() => {
     if (open) {
       void loadNotifications(true)
+      markAllVisibleAsRead()
     }
   }, [open])
+
+  useEffect(() => {
+    if (open && notifications.length > 0) {
+      markAllVisibleAsRead()
+    }
+  }, [open, notifications])
+
+  function getReadKey() {
+    return `${READ_KEY_PREFIX}:${getPushSessionUserKey() || 'guest'}`
+  }
+
+  function hydrateReadIds() {
+    if (typeof window === 'undefined') return
+
+    try {
+      const raw = window.sessionStorage.getItem(getReadKey())
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      setReadIds(Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [])
+    } catch {
+      // Ignore invalid cache.
+    }
+  }
+
+  function saveReadIds(nextIds: string[]) {
+    if (typeof window === 'undefined') return
+    window.sessionStorage.setItem(getReadKey(), JSON.stringify(nextIds))
+  }
+
+  function markAllVisibleAsRead() {
+    if (notifications.length === 0) return
+
+    setReadIds((current) => {
+      const merged = Array.from(new Set([...current, ...notifications.map((item) => item.id)]))
+      saveReadIds(merged)
+      return merged
+    })
+  }
 
   function hydrateFromCache() {
     if (typeof window === 'undefined') return true
@@ -155,6 +199,13 @@ export default function NotificationBell() {
       setNotifications(nextNotifications)
       setPendingActions(nextPendingActions)
       saveCache(nextNotifications, nextPendingActions)
+      if (open && nextNotifications.length > 0) {
+        setReadIds((current) => {
+          const merged = Array.from(new Set([...current, ...nextNotifications.map((item: NotificationItem) => item.id)]))
+          saveReadIds(merged)
+          return merged
+        })
+      }
     } catch {
       // best-effort
     }
@@ -196,7 +247,7 @@ export default function NotificationBell() {
       >
         <span style={{ fontSize: 24, color: needsPushPrompt ? 'var(--gold-light)' : 'var(--text-primary)' }}>🔔</span>
 
-        {total > 0 && (
+        {unreadCount > 0 && (
           <span
             style={{
               position: 'absolute',
@@ -216,7 +267,7 @@ export default function NotificationBell() {
               lineHeight: 1,
             }}
           >
-            {total}
+            {unreadCount}
           </span>
         )}
 

@@ -68,6 +68,10 @@ export function isIosDevice() {
   return /iphone|ipad|ipod/i.test(window.navigator.userAgent)
 }
 
+export function getPushSessionUserKey() {
+  return getSession()?.user_key || null
+}
+
 export async function registerPushWorker() {
   if (!('serviceWorker' in navigator)) return null
   return navigator.serviceWorker.register('/sw.js', { scope: '/' })
