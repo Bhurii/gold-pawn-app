@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const data = await getOrSetMemoryCache(`api:notifications:recent:${user.user_key}`, 10000, async () => {
     const [feed, pendingActions] = await Promise.all([
-      getNotificationFeed(user, 12),
+      getNotificationFeed(user, 5),
       getPendingActionFeed(user),
     ])
 

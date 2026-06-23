@@ -62,7 +62,7 @@ export default function NotificationBell() {
 
   const needsPushPrompt = pushState !== 'enabled'
   const unreadCount = notifications.filter((item) => !readIds.includes(item.id)).length
-  const total = unreadCount
+  const total = pendingActions.length + unreadCount
 
   useEffect(() => {
     function handleClick(event: MouseEvent) {
@@ -247,7 +247,7 @@ export default function NotificationBell() {
       >
         <span style={{ fontSize: 24, color: needsPushPrompt ? 'var(--gold-light)' : 'var(--text-primary)' }}>🔔</span>
 
-        {unreadCount > 0 && (
+        {total > 0 && (
           <span
             style={{
               position: 'absolute',
@@ -267,7 +267,7 @@ export default function NotificationBell() {
               lineHeight: 1,
             }}
           >
-            {unreadCount}
+            {total}
           </span>
         )}
 
