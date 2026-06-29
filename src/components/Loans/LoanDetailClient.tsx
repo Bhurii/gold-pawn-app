@@ -246,7 +246,7 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
       if (!response.ok) {
         throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการสินเชื่อไม่สำเร็จ')
       }
-      await pingPushDispatch()
+      void pingPushDispatch()
 
       const typeLabel = txnType === 'interest' ? 'ตัดดอก' : txnType === 'principal_payment' ? 'ตัดต้น' : 'ปิดหนี้'
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: `${typeLabel}เรียบร้อยแล้ว` })

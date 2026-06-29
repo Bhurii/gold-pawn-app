@@ -31,7 +31,9 @@ type ReportPayload = {
   loanDetails: LoanDetail[]
 }
 
-type ReportCache = ReportPayload
+type ReportCache = ReportPayload & {
+  savedAt: number
+}
 type SelectedPeriod = number | 'all'
 
 function getMonthIndex(dateStr: string) {
@@ -63,8 +65,10 @@ export default function Report() {
   }, [currentYear])
 
   useEffect(() => {
-    hydrateFromCache(selectedYear, ownerScope)
-    void loadYearData(selectedYear, ownerScope)
+    const cacheFresh = hydrateFromCache(selectedYear, ownerScope)
+    if (!cacheFresh) {
+      void loadYearData(selectedYear, ownerScope)
+    }
   }, [selectedYear, ownerScope])
 
   useEffect(() => {
@@ -88,7 +92,7 @@ export default function Report() {
       const nextReport = payload as ReportPayload
       setReport(nextReport)
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(year, scope), JSON.stringify(nextReport))
+        window.sessionStorage.setItem(getCacheKey(year, scope), JSON.stringify({ ...nextReport, savedAt: Date.now() } satisfies ReportCache))
       }
     } finally {
       setLoading(false)
@@ -100,15 +104,18 @@ export default function Report() {
   }
 
   function hydrateFromCache(year: number, scope: string) {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined') return false
 
     try {
       const raw = window.sessionStorage.getItem(getCacheKey(year, scope))
-      if (!raw) return
-      setReport(JSON.parse(raw) as ReportCache)
+      if (!raw) return false
+      const cached = JSON.parse(raw) as ReportCache
+      setReport(cached)
       setLoading(false)
+      return Date.now() - Number(cached.savedAt || 0) < 60_000
     } catch {
       // Ignore invalid cache and refetch.
+      return false
     }
   }
 
