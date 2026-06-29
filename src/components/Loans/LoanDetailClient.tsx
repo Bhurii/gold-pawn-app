@@ -5,9 +5,7 @@ import { useRouter } from 'next/navigation'
 import ActionAuditPanel from '@/components/ActionAuditPanel'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { insertNotificationRecord } from '@/lib/notification-store'
-import { getNotificationRecipientsForFundOwner, getReadableUserName } from '@/lib/fund-owner'
+import { getReadableUserName } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
 import { assertSupabaseMutation } from '@/lib/supabase-mutation'
@@ -232,45 +230,22 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
       const amount = txnType === 'close' ? loan.remaining_principal : parsePositiveMoney(form.amount, 'Transaction amount')
       const transactionDate = requireDate(form.date, 'Transaction date')
 
-      const txnInsert = await supabase.from('loan_transactions').insert({
-        loan_id: loanId,
-        type: txnType,
-        amount,
-        transaction_date: transactionDate,
-        slip_url: slipUrl,
-        note: form.note,
+      const response = await fetch('/api/loan-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          loan_id: loanId,
+          type: txnType,
+          amount,
+          transaction_date: transactionDate,
+          slip_url: slipUrl,
+          note: form.note,
+        }),
       })
-      assertSupabaseMutation(txnInsert, 'บันทึกประวัติสินเชื่อไม่สำเร็จ')
-
-      if (txnType === 'principal_payment') {
-        const newRemaining = Math.max(0, loan.remaining_principal - amount)
-        const loanUpdate = await supabase.from('loans').update({ remaining_principal: newRemaining }).eq('id', loanId)
-        assertSupabaseMutation(loanUpdate, 'อัปเดตยอดคงเหลือไม่สำเร็จ')
-      } else if (txnType === 'close') {
-        const loanUpdate = await supabase.from('loans').update({ remaining_principal: 0, status: 'closed' }).eq('id', loanId)
-        assertSupabaseMutation(loanUpdate, 'ปิดสินเชื่อไม่สำเร็จ')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการสินเชื่อไม่สำเร็จ')
       }
-
-      const notificationType =
-        txnType === 'interest'
-          ? 'loan_interest_paid'
-          : txnType === 'principal_payment'
-            ? 'loan_principal_paid'
-            : 'loan_closed'
-
-      const notificationMessage =
-        txnType === 'interest'
-          ? `รับดอกสินเชื่อ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
-          : txnType === 'principal_payment'
-            ? `ตัดต้นสินเชื่อ ${loan.borrower_name} ฿${amount.toLocaleString('th-TH')}`
-            : `ปิดสินเชื่อ ${loan.borrower_name} เรียบร้อย`
-
-      const notificationInsert = await insertNotificationRecord(supabase, {
-        type: notificationType,
-        message: notificationMessage,
-        action_url: createNotificationAction(`/loans/${loanId}`, [...getNotificationRecipientsForFundOwner((loan.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
-      })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
       await pingPushDispatch()
 
       const typeLabel = txnType === 'interest' ? 'ตัดดอก' : txnType === 'principal_payment' ? 'ตัดต้น' : 'ปิดหนี้'
