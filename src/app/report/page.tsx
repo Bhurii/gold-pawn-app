@@ -34,11 +34,8 @@ type ReportPayload = {
 type ReportCache = ReportPayload & {
   savedAt: number
 }
-type SelectedPeriod = number | 'all'
 
-function getMonthIndex(dateStr: string) {
-  return new Date(`${dateStr}T00:00:00`).getMonth()
-}
+type SelectedPeriod = number | 'all'
 
 export default function Report() {
   const router = useRouter()
@@ -65,11 +62,11 @@ export default function Report() {
   }, [currentYear])
 
   useEffect(() => {
-    const cacheFresh = hydrateFromCache(selectedYear, ownerScope)
+    const cacheFresh = hydrateFromCache(selectedYear, ownerScope, selectedPeriod)
     if (!cacheFresh) {
-      void loadYearData(selectedYear, ownerScope)
+      void loadYearData(selectedYear, ownerScope, selectedPeriod)
     }
-  }, [selectedYear, ownerScope])
+  }, [selectedYear, ownerScope, selectedPeriod])
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString())
@@ -81,40 +78,46 @@ export default function Report() {
     }
   }, [ownerScope, router, searchParams])
 
-  async function loadYearData(year: number, scope: 'all' | FundOwnerKey) {
+  useEffect(() => {
+    setExpandPawn(false)
+    setExpandLoan(false)
+  }, [selectedYear, ownerScope, selectedPeriod])
+
+  async function loadYearData(year: number, scope: 'all' | FundOwnerKey, period: SelectedPeriod) {
     setLoading((current) => (report ? current : true))
     try {
-      const response = await fetch(`/api/report-summary?year=${year}&owner_scope=${encodeURIComponent(scope)}`, { cache: 'no-store' })
+      const monthParam = period === 'all' ? 'all' : String(period)
+      const response = await fetch(`/api/report-summary?year=${year}&owner_scope=${encodeURIComponent(scope)}&month=${encodeURIComponent(monthParam)}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload?.error || 'โหลดข้อมูลรายงานไม่สำเร็จ')
       }
+
       const nextReport = payload as ReportPayload
       setReport(nextReport)
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(year, scope), JSON.stringify({ ...nextReport, savedAt: Date.now() } satisfies ReportCache))
+        window.sessionStorage.setItem(getCacheKey(year, scope, period), JSON.stringify({ ...nextReport, savedAt: Date.now() } satisfies ReportCache))
       }
     } finally {
       setLoading(false)
     }
   }
 
-  function getCacheKey(year: number, scope: string) {
-    return `report:${scope}:${year}`
+  function getCacheKey(year: number, scope: string, period: SelectedPeriod) {
+    return `report:${scope}:${year}:${period === 'all' ? 'all' : period}`
   }
 
-  function hydrateFromCache(year: number, scope: string) {
+  function hydrateFromCache(year: number, scope: string, period: SelectedPeriod) {
     if (typeof window === 'undefined') return false
 
     try {
-      const raw = window.sessionStorage.getItem(getCacheKey(year, scope))
+      const raw = window.sessionStorage.getItem(getCacheKey(year, scope, period))
       if (!raw) return false
       const cached = JSON.parse(raw) as ReportCache
       setReport(cached)
       setLoading(false)
       return Date.now() - Number(cached.savedAt || 0) < 60_000
     } catch {
-      // Ignore invalid cache and refetch.
       return false
     }
   }
@@ -128,15 +131,8 @@ export default function Report() {
     loanDetails: [] as LoanDetail[],
   }
 
-  const filteredPawnDetails = useMemo(
-    () => safeReport.pawnDetails.filter((detail) => selectedPeriod === 'all' || getMonthIndex(detail.date) === selectedPeriod),
-    [safeReport.pawnDetails, selectedPeriod],
-  )
-
-  const filteredLoanDetails = useMemo(
-    () => safeReport.loanDetails.filter((detail) => selectedPeriod === 'all' || getMonthIndex(detail.date) === selectedPeriod),
-    [safeReport.loanDetails, selectedPeriod],
-  )
+  const filteredPawnDetails = useMemo(() => safeReport.pawnDetails, [safeReport.pawnDetails])
+  const filteredLoanDetails = useMemo(() => safeReport.loanDetails, [safeReport.loanDetails])
 
   const selectedMonthIndex = typeof selectedPeriod === 'number' ? selectedPeriod : new Date().getMonth()
   const pawnInterest = filteredPawnDetails.reduce((sum, detail) => sum + detail.amount, 0)

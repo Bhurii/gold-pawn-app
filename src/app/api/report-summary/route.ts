@@ -13,48 +13,115 @@ function relationFirst<T>(value: T | T[] | null | undefined) {
   return value || null
 }
 
+function parseMonth(value: string | null) {
+  if (value === 'all') return 'all' as const
+  const month = Number(value)
+  return Number.isInteger(month) && month >= 0 && month <= 11 ? month : new Date().getMonth()
+}
+
+function getMonthRange(year: number, month: number | 'all') {
+  if (month === 'all') {
+    return {
+      firstDay: `${year}-01-01`,
+      lastDay: `${year}-12-31`,
+    }
+  }
+
+  return {
+    firstDay: `${year}-${String(month + 1).padStart(2, '0')}-01`,
+    lastDay: new Date(year, month + 1, 0).toISOString().split('T')[0],
+  }
+}
+
 export async function GET(request: NextRequest) {
   const user = readSessionFromRequest(request)
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const year = Number(new URL(request.url).searchParams.get('year'))
+  const url = new URL(request.url)
+  const year = Number(url.searchParams.get('year'))
   if (!Number.isInteger(year) || year < 2024 || year > 2100) {
     return NextResponse.json({ error: 'Invalid year' }, { status: 400 })
   }
 
-  const firstDay = `${year}-01-01`
-  const lastDay = `${year}-12-31`
-  const ownerScope = resolveFundScope(user, new URL(request.url).searchParams.get('owner_scope'))
+  const ownerScope = resolveFundScope(user, url.searchParams.get('owner_scope'))
+  const selectedMonth = parseMonth(url.searchParams.get('month'))
+  const summaryRange = getMonthRange(year, 'all')
+  const detailRange = getMonthRange(year, selectedMonth)
 
-  const data = await getOrSetMemoryCache(`api:report-summary:${ownerScope}:${year}`, 60000, async () => {
+  const data = await getOrSetMemoryCache(`api:report-summary:${ownerScope}:${year}:${selectedMonth}`, 60000, async () => {
     const supabase = createAdminClient()
-    let interestsQuery = supabase.from('interest_payments').select('amount, payment_date, pawns!inner(ticket_no, fund_owner)').gte('payment_date', firstDay).lte('payment_date', lastDay)
-    let redemptionsQuery = supabase.from('redemptions').select('interest_last, redeem_date, pawns!inner(ticket_no, fund_owner)').gte('redeem_date', firstDay).lte('redeem_date', lastDay)
-    let loanTxQuery = supabase.from('loan_transactions').select('amount, transaction_date, loans!inner(borrower_name, fund_owner)').eq('type', 'interest').gte('transaction_date', firstDay).lte('transaction_date', lastDay)
+
+    let interestsSummaryQuery = supabase
+      .from('interest_payments')
+      .select('amount, payment_date, pawns!inner(fund_owner)')
+      .gte('payment_date', summaryRange.firstDay)
+      .lte('payment_date', summaryRange.lastDay)
+
+    let redemptionsSummaryQuery = supabase
+      .from('redemptions')
+      .select('interest_last, redeem_date, pawns!inner(fund_owner)')
+      .gte('redeem_date', summaryRange.firstDay)
+      .lte('redeem_date', summaryRange.lastDay)
+
+    let loanTxSummaryQuery = supabase
+      .from('loan_transactions')
+      .select('amount, transaction_date, loans!inner(fund_owner)')
+      .eq('type', 'interest')
+      .gte('transaction_date', summaryRange.firstDay)
+      .lte('transaction_date', summaryRange.lastDay)
+
+    let interestDetailsQuery = supabase
+      .from('interest_payments')
+      .select('amount, payment_date, pawns!inner(ticket_no, fund_owner)')
+      .gte('payment_date', detailRange.firstDay)
+      .lte('payment_date', detailRange.lastDay)
+
+    let redemptionDetailsQuery = supabase
+      .from('redemptions')
+      .select('interest_last, redeem_date, pawns!inner(ticket_no, fund_owner)')
+      .gte('redeem_date', detailRange.firstDay)
+      .lte('redeem_date', detailRange.lastDay)
+
+    let loanDetailsQuery = supabase
+      .from('loan_transactions')
+      .select('amount, transaction_date, loans!inner(borrower_name, fund_owner)')
+      .eq('type', 'interest')
+      .gte('transaction_date', detailRange.firstDay)
+      .lte('transaction_date', detailRange.lastDay)
+
     let pawnsQuery = supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active')
     let loansQuery = supabase.from('loans').select('remaining_principal').eq('status', 'active')
 
     if (ownerScope !== 'all') {
-      interestsQuery = interestsQuery.eq('pawns.fund_owner', ownerScope)
-      redemptionsQuery = redemptionsQuery.eq('pawns.fund_owner', ownerScope)
-      loanTxQuery = loanTxQuery.eq('loans.fund_owner', ownerScope)
+      interestsSummaryQuery = interestsSummaryQuery.eq('pawns.fund_owner', ownerScope)
+      redemptionsSummaryQuery = redemptionsSummaryQuery.eq('pawns.fund_owner', ownerScope)
+      loanTxSummaryQuery = loanTxSummaryQuery.eq('loans.fund_owner', ownerScope)
+      interestDetailsQuery = interestDetailsQuery.eq('pawns.fund_owner', ownerScope)
+      redemptionDetailsQuery = redemptionDetailsQuery.eq('pawns.fund_owner', ownerScope)
+      loanDetailsQuery = loanDetailsQuery.eq('loans.fund_owner', ownerScope)
       pawnsQuery = applyFundScopeFilter(pawnsQuery, ownerScope)
       loansQuery = applyFundScopeFilter(loansQuery, ownerScope)
     }
 
     const [
-      { data: interests },
-      { data: redemptions },
-      { data: loanTxns },
+      { data: interestsSummary },
+      { data: redemptionsSummary },
+      { data: loanTxSummary },
+      { data: interestDetails },
+      { data: redemptionDetails },
+      { data: loanDetailRows },
       { data: pawns },
       { data: loans },
       budgets,
     ] = await Promise.all([
-      interestsQuery,
-      redemptionsQuery,
-      loanTxQuery,
+      interestsSummaryQuery,
+      redemptionsSummaryQuery,
+      loanTxSummaryQuery,
+      interestDetailsQuery,
+      redemptionDetailsQuery,
+      loanDetailsQuery,
       pawnsQuery,
       loansQuery,
       loadBudgetState(),
@@ -64,37 +131,43 @@ export async function GET(request: NextRequest) {
     const pawnDetails: Array<{ ticket?: string; amount: number; date: string; type: string }> = []
     const loanDetails: Array<{ name?: string; amount: number; date: string }> = []
 
-    for (const interest of interests || []) {
+    for (const interest of interestsSummary || []) {
       const month = new Date(`${interest.payment_date}T00:00:00`).getMonth()
-      const amount = Number(interest.amount || 0)
-      monthlyData[month] += amount
+      monthlyData[month] += Number(interest.amount || 0)
+    }
+
+    for (const redemption of redemptionsSummary || []) {
+      const month = new Date(`${redemption.redeem_date}T00:00:00`).getMonth()
+      monthlyData[month] += Number(redemption.interest_last || 0)
+    }
+
+    for (const txn of loanTxSummary || []) {
+      const month = new Date(`${txn.transaction_date}T00:00:00`).getMonth()
+      monthlyData[month] += Number(txn.amount || 0)
+    }
+
+    for (const interest of interestDetails || []) {
       pawnDetails.push({
         ticket: relationFirst(interest.pawns)?.ticket_no,
-        amount,
+        amount: Number(interest.amount || 0),
         date: interest.payment_date,
         type: 'ตัดดอก',
       })
     }
 
-    for (const redemption of redemptions || []) {
-      const month = new Date(`${redemption.redeem_date}T00:00:00`).getMonth()
-      const amount = Number(redemption.interest_last || 0)
-      monthlyData[month] += amount
+    for (const redemption of redemptionDetails || []) {
       pawnDetails.push({
         ticket: relationFirst(redemption.pawns)?.ticket_no,
-        amount,
+        amount: Number(redemption.interest_last || 0),
         date: redemption.redeem_date,
         type: 'ไถ่ถอน',
       })
     }
 
-    for (const txn of loanTxns || []) {
-      const month = new Date(`${txn.transaction_date}T00:00:00`).getMonth()
-      const amount = Number(txn.amount || 0)
-      monthlyData[month] += amount
+    for (const txn of loanDetailRows || []) {
       loanDetails.push({
         name: relationFirst(txn.loans)?.borrower_name,
-        amount,
+        amount: Number(txn.amount || 0),
         date: txn.transaction_date,
       })
     }
