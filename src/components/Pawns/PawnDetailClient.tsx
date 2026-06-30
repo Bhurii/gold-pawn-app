@@ -6,14 +6,14 @@ import ActionAuditPanel from '@/components/ActionAuditPanel'
 import PawnChecklist from '@/components/PawnChecklist'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
+import { FUND_OWNER_BADGES, getAccessibleFundOwners, getNotificationRecipientsForFundOwner, getReadableUserName, type FundOwnerKey } from '@/lib/fund-owner'
 import { createNotificationAction } from '@/lib/notification-meta'
 import { insertNotificationRecord } from '@/lib/notification-store'
-import { getNotificationRecipientsForFundOwner, getReadableUserName } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { uploadSlip } from '@/lib/slip-storage'
+import type { InterestRow, LinkPawn, PawnDetailData, PawnDetailRow, RedemptionRow, TransferSlipRow } from '@/lib/server/pawn-detail'
 import { assertSupabaseMutation } from '@/lib/supabase-mutation'
 import { supabase } from '@/lib/supabase'
-import type { InterestRow, LinkPawn, PawnDetailData, PawnDetailRow, RedemptionRow, TransferSlipRow } from '@/lib/server/pawn-detail'
 import { fmt, toThaiDateLong } from '@/lib/utils'
 import { errorMessage } from '@/lib/validation'
 
@@ -28,11 +28,22 @@ const EMPTY_INTEREST_FORM = {
   note: '',
 }
 
+const EMPTY_PAWN_FORM = {
+  ticket_no: '',
+  pawn_date: '',
+  amount: '',
+  fund_owner: 'tony' as FundOwnerKey,
+  notes: '',
+}
+
 export default function PawnDetailClient({ pawnId, initialData }: Props) {
   const router = useRouter()
   const { showToast } = useToast()
   const user = getSession()
   const canManageTransfer = user?.role === 'owner' || user?.role === 'agent'
+  const canEditPawn = user?.role === 'owner' || user?.role === 'agent'
+  const availableOwners = getAccessibleFundOwners(user)
+
   const [pawn, setPawn] = useState<PawnDetailRow | null>(initialData.pawn)
   const [interests, setInterests] = useState<InterestRow[]>(initialData.interests)
   const [redemption, setRedemption] = useState<RedemptionRow | null>(initialData.redemption)
@@ -43,6 +54,8 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
   const [viewImg, setViewImg] = useState('')
   const [uploadingPawnSlip, setUploadingPawnSlip] = useState(false)
   const [uploadingDocKey, setUploadingDocKey] = useState('')
+  const [editingPawn, setEditingPawn] = useState(false)
+  const [pawnForm, setPawnForm] = useState(EMPTY_PAWN_FORM)
   const [editingInterest, setEditingInterest] = useState<InterestRow | null>(null)
   const [deletingInterest, setDeletingInterest] = useState<InterestRow | null>(null)
   const [interestForm, setInterestForm] = useState(EMPTY_INTEREST_FORM)
@@ -121,7 +134,33 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     setActionRemark('')
   }
 
+  function openPawnEdit() {
+    if (!pawn) return
+
+    const currentOwner = pawn.fund_owner as FundOwnerKey
+    const fallbackOwner = availableOwners[0] || 'tony'
+
+    setEditingInterest(null)
+    setDeletingInterest(null)
+    setEditingPawn(true)
+    setPawnForm({
+      ticket_no: pawn.ticket_no || '',
+      pawn_date: pawn.pawn_date || '',
+      amount: String(pawn.amount || ''),
+      fund_owner: availableOwners.includes(currentOwner) ? currentOwner : fallbackOwner,
+      notes: pawn.notes || '',
+    })
+    setActionRemark('')
+  }
+
+  function closePawnDialog() {
+    setEditingPawn(false)
+    setPawnForm(EMPTY_PAWN_FORM)
+    setActionRemark('')
+  }
+
   function openEditInterest(item: InterestRow) {
+    setEditingPawn(false)
     setDeletingInterest(null)
     setEditingInterest(item)
     setInterestForm({
@@ -133,9 +172,67 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
   }
 
   function openDeleteInterest(item: InterestRow) {
+    setEditingPawn(false)
     setEditingInterest(null)
     setDeletingInterest(item)
     setActionRemark('')
+  }
+
+  async function submitPawnEdit() {
+    if (!pawn) return
+
+    setActionSaving(true)
+    try {
+      const ticketNo = pawnForm.ticket_no.trim()
+      const amount = Number(pawnForm.amount || 0)
+      const notes = pawnForm.notes.trim()
+
+      if (!ticketNo) {
+        throw new Error('กรุณากรอกเลขตั๋ว')
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(pawnForm.pawn_date)) {
+        throw new Error('กรุณาเลือกวันที่จำนำให้ถูกต้อง')
+      }
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new Error('จำนวนเงินต้องมากกว่า 0')
+      }
+      if (!availableOwners.includes(pawnForm.fund_owner)) {
+        throw new Error('เจ้าของเงินไม่ถูกต้อง')
+      }
+
+      const response = await fetch('/api/action-records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'update',
+          entity_type: 'pawn',
+          record_id: pawnId,
+          parent_type: 'pawn',
+          parent_id: pawnId,
+          remark: actionRemark,
+          changes: {
+            ticket_no: ticketNo,
+            pawn_date: pawnForm.pawn_date,
+            amount,
+            fund_owner: pawnForm.fund_owner,
+            notes,
+          },
+        }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'แก้ไขข้อมูลตั๋วไม่สำเร็จ')
+      }
+
+      await loadData()
+      closePawnDialog()
+      showToast({ tone: 'success', title: 'แก้ไขแล้ว', message: 'บันทึกการแก้ไขข้อมูลตั๋วจำนำเรียบร้อย' })
+    } catch (error) {
+      showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(error) })
+    } finally {
+      setActionSaving(false)
+    }
   }
 
   async function submitInterestEdit() {
@@ -251,9 +348,9 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
       const updateResult = await supabase.from('pawns').update({ pawn_slip_url: slipUrl }).eq('id', pawnId)
       assertSupabaseMutation(updateResult, 'บันทึกรูปตั๋วไม่สำเร็จ')
       await loadData()
-      showToast({ tone: 'success', title: 'อัปรูปตั๋วแล้ว', message: `ตั๋ว #${pawn.ticket_no} ถูกบันทึกรูปเรียบร้อย` })
+      showToast({ tone: 'success', title: 'อัปโหลดแล้ว', message: `ตั๋ว #${pawn.ticket_no} ถูกบันทึกรูปเรียบร้อย` })
     } catch (error) {
-      showToast({ tone: 'error', title: 'อัปรูปไม่สำเร็จ', message: errorMessage(error) })
+      showToast({ tone: 'error', title: 'อัปโหลดไม่สำเร็จ', message: errorMessage(error) })
     } finally {
       setUploadingDocKey('')
     }
@@ -266,9 +363,9 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
       const updateResult = await supabase.from('interest_payments').update({ slip_url: slipUrl }).eq('id', interestId)
       assertSupabaseMutation(updateResult, 'บันทึกสลิปตัดดอกไม่สำเร็จ')
       await loadData()
-      showToast({ tone: 'success', title: 'อัปสลิปแล้ว', message: 'อัปสลิปตัดดอกย้อนหลังเรียบร้อย' })
+      showToast({ tone: 'success', title: 'อัปโหลดแล้ว', message: 'อัปเดตสลิปตัดดอกย้อนหลังเรียบร้อย' })
     } catch (error) {
-      showToast({ tone: 'error', title: 'อัปสลิปไม่สำเร็จ', message: errorMessage(error) })
+      showToast({ tone: 'error', title: 'อัปโหลดไม่สำเร็จ', message: errorMessage(error) })
     } finally {
       setUploadingDocKey('')
     }
@@ -283,9 +380,9 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
       const updateResult = await supabase.from('redemptions').update({ [column]: slipUrl }).eq('id', redemption.id)
       assertSupabaseMutation(updateResult, 'บันทึกหลักฐานไถ่ถอนไม่สำเร็จ')
       await loadData()
-      showToast({ tone: 'success', title: 'อัปหลักฐานแล้ว', message: 'เพิ่มหลักฐานการไถ่ถอนย้อนหลังเรียบร้อย' })
+      showToast({ tone: 'success', title: 'อัปโหลดแล้ว', message: 'เพิ่มหลักฐานการไถ่ถอนย้อนหลังเรียบร้อย' })
     } catch (error) {
-      showToast({ tone: 'error', title: 'อัปหลักฐานไม่สำเร็จ', message: errorMessage(error) })
+      showToast({ tone: 'error', title: 'อัปโหลดไม่สำเร็จ', message: errorMessage(error) })
     } finally {
       setUploadingDocKey('')
     }
@@ -293,10 +390,12 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
 
   async function confirmTransfer(file: File) {
     if (!pawn) return
+
     setUploadingPawnSlip(true)
     try {
       const transferMeta = getExpectedTransferMeta()
       if (!transferMeta) return
+
       const slipUrl = await uploadSlip(file, 'transfer')
       const transferInsert = await supabase.from('transfer_slips').insert({
         pawn_id: pawnId,
@@ -306,17 +405,20 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
         confirmed_at: new Date().toISOString(),
       })
       assertSupabaseMutation(transferInsert, 'บันทึกสลิปโอนเงินไม่สำเร็จ')
+
       if (pawn.tx_status === 'pending_transfer') {
         const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
         assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
       }
+
       const notificationInsert = await insertNotificationRecord(supabase, {
         type: 'transfer_confirmed',
         message: `อัปสลิปโอนเงินแล้ว ตั๋ว #${pawn.ticket_no} ฿${transferMeta.amount.toLocaleString('th-TH')}`,
         pawn_id: String(pawnId),
-        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
+        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as FundOwnerKey) || 'tony')]),
       })
       assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
+
       await pingPushDispatch()
       await loadData()
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'ยืนยันการโอนเงินเรียบร้อยแล้ว' })
@@ -328,20 +430,22 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
   }
 
   async function handleBypassCash() {
-    if (!window.confirm('ยืนยันว่าโอนเงินสดให้เจ้หลุยแล้ว?')) return
+    if (!window.confirm('ยืนยันว่าโอนเงินสดให้เจ้หลุยส์แล้ว?')) return
     if (!pawn) return
 
     setUploadingPawnSlip(true)
     try {
       const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
       assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
+
       const notificationInsert = await insertNotificationRecord(supabase, {
         type: 'bypass_cash',
         message: `เคลียร์เงินสดแล้ว ตั๋ว #${pawn.ticket_no}`,
         pawn_id: String(pawnId),
-        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
+        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as FundOwnerKey) || 'tony')]),
       })
       assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
+
       await pingPushDispatch()
       await loadData()
       showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'เคลียร์รายการเงินสดเรียบร้อยแล้ว' })
@@ -360,13 +464,15 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
     try {
       const pawnUpdate = await supabase.from('pawns').update({ tx_status: 'active' }).eq('id', pawnId)
       assertSupabaseMutation(pawnUpdate, 'อัปเดตสถานะตั๋วไม่สำเร็จ')
+
       const notificationInsert = await insertNotificationRecord(supabase, {
         type: 'bypass_prepaid',
         message: `ฝากเงินล่วงหน้าแล้ว ตั๋ว #${pawn.ticket_no}`,
         pawn_id: String(pawnId),
-        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as 'tony' | 'louise' | 'phat') || 'tony')]),
+        action_url: createNotificationAction(`/pawns/${pawnId}`, [...getNotificationRecipientsForFundOwner((pawn.fund_owner as FundOwnerKey) || 'tony')]),
       })
       assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
+
       await pingPushDispatch()
       await loadData()
       showToast({ tone: 'success', title: 'อัปเดตแล้ว', message: 'บันทึกการฝากเงินล่วงหน้าเรียบร้อยแล้ว' })
@@ -397,14 +503,51 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
         </div>
       ) : null}
 
-      {editingInterest || deletingInterest ? (
+      {editingPawn || editingInterest || deletingInterest ? (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div className="card" style={{ width: '100%', maxWidth: 420, borderRadius: 18 }}>
             <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>
-              {editingInterest ? 'แก้ไขรายการตัดดอก' : 'ลบรายการตัดดอก'}
+              {editingPawn ? 'แก้ไขข้อมูลตั๋วจำนำ' : editingInterest ? 'แก้ไขรายการตัดดอก' : 'ลบรายการตัดดอก'}
             </div>
 
-            {editingInterest ? (
+            {editingPawn ? (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>เลขตั๋ว</div>
+                  <input className="input-field" value={pawnForm.ticket_no} onChange={(event) => setPawnForm((current) => ({ ...current, ticket_no: event.target.value }))} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>วันที่จำนำ</div>
+                  <input className="input-field" type="date" value={pawnForm.pawn_date} onChange={(event) => setPawnForm((current) => ({ ...current, pawn_date: event.target.value }))} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>จำนวนเงิน</div>
+                  <input className="input-field" type="number" value={pawnForm.amount} onChange={(event) => setPawnForm((current) => ({ ...current, amount: event.target.value }))} />
+                </div>
+                {availableOwners.length > 1 ? (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 8 }}>เจ้าของเงิน</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {availableOwners.map((owner) => (
+                        <button
+                          key={owner}
+                          type="button"
+                          className="filter-chip"
+                          data-active={pawnForm.fund_owner === owner}
+                          onClick={() => setPawnForm((current) => ({ ...current, fund_owner: owner }))}
+                        >
+                          {FUND_OWNER_BADGES[owner]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>หมายเหตุ</div>
+                  <input className="input-field" value={pawnForm.notes} onChange={(event) => setPawnForm((current) => ({ ...current, notes: event.target.value }))} placeholder="ถ้ามี" />
+                </div>
+              </>
+            ) : editingInterest ? (
               <>
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>จำนวนดอกเบี้ย</div>
@@ -427,19 +570,24 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
 
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 14, color: 'var(--text-muted)', marginBottom: 6 }}>เหตุผล / remark</div>
-              <input className="input-field" value={actionRemark} onChange={(event) => setActionRemark(event.target.value)} placeholder={`เช่น ${editingInterest ? 'คีย์ยอดผิด' : 'บันทึกซ้ำ'} โดย ${getReadableUserName(user)}`} />
+              <input
+                className="input-field"
+                value={actionRemark}
+                onChange={(event) => setActionRemark(event.target.value)}
+                placeholder={`เช่น ${editingPawn ? 'แก้เจ้าของเงินผิด' : editingInterest ? 'คีย์ยอดผิด' : 'บันทึกซ้ำ'} โดย ${getReadableUserName(user)}`}
+              />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button type="button" className="btn-secondary" onClick={closeInterestDialogs} disabled={actionSaving}>ยกเลิก</button>
+              <button type="button" className="btn-secondary" onClick={editingPawn ? closePawnDialog : closeInterestDialogs} disabled={actionSaving}>ยกเลิก</button>
               <button
                 type="button"
-                className={deletingInterest ? 'btn-primary' : 'btn-primary'}
-                onClick={editingInterest ? submitInterestEdit : submitInterestDelete}
+                className="btn-primary"
+                onClick={editingPawn ? submitPawnEdit : editingInterest ? submitInterestEdit : submitInterestDelete}
                 disabled={actionSaving}
-                style={deletingInterest ? { background: 'linear-gradient(180deg, #7B2D2D 0%, #5B1717 100%)', color: '#FFE3E3' } : undefined}
+                style={!editingPawn && deletingInterest ? { background: 'linear-gradient(180deg, #7B2D2D 0%, #5B1717 100%)', color: '#FFE3E3' } : undefined}
               >
-                {actionSaving ? 'กำลังบันทึก...' : editingInterest ? 'บันทึกการแก้ไข' : 'ยืนยันการลบ'}
+                {actionSaving ? 'กำลังบันทึก...' : editingPawn || editingInterest ? 'บันทึกการแก้ไข' : 'ยืนยันการลบ'}
               </button>
             </div>
           </div>
@@ -456,7 +604,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
 
       {renewedTo ? (
         <div onClick={() => router.push(`/pawns/${renewedTo.id}`)} style={{ background: 'rgba(242,201,76,0.08)', border: '1px solid rgba(242,201,76,0.28)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>🔗</span>
+          <span style={{ fontSize: 18 }}>↗</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, color: 'var(--gold)', fontWeight: 700 }}>{adjustedType}{' -> '}ตั๋วใหม่ #{renewedTo.ticket_no}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ยอดใหม่ ฿{fmt(renewedTo.amount)}</div>
@@ -467,7 +615,7 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
 
       {renewedFrom ? (
         <div onClick={() => router.push(`/pawns/${pawn.renewed_from_id}`)} style={{ background: 'rgba(242,201,76,0.06)', border: '1px solid rgba(242,201,76,0.2)', borderRadius: 14, padding: '12px 16px', marginBottom: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 18 }}>🔗</span>
+          <span style={{ fontSize: 18 }}>↘</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, color: 'var(--gold-light)', fontWeight: 600 }}>{cameFromTopup ? 'เพิ่มยอดจากตั๋ว' : 'ลดต้นจากตั๋ว'} #{renewedFrom.ticket_no}</div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>ต้นเดิม ฿{fmt(renewedFrom.amount)} · {cameFromTopup ? 'เพิ่มยอด' : 'ตัดต้น'} ฿{fmt(Math.abs(Number(pawn.renewal_principal_paid) || 0))}</div>
@@ -486,6 +634,17 @@ export default function PawnDetailClient({ pawnId, initialData }: Props) {
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>จำนวนเงิน</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>฿{fmt(pawn.amount)}</div>
           </div>
+          <div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>เจ้าของเงิน</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <span className="filter-chip" data-active={true}>{FUND_OWNER_BADGES[(pawn.fund_owner as FundOwnerKey) || 'tony']}</span>
+            </div>
+          </div>
+          {canEditPawn ? (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+              <button type="button" className="btn-secondary" onClick={openPawnEdit} style={{ fontSize: 14, padding: '10px 14px' }}>แก้ไขข้อมูลตั๋ว</button>
+            </div>
+          ) : null}
         </div>
         {pawn.notes ? <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-secondary)' }}>{pawn.notes}</div> : null}
       </div>

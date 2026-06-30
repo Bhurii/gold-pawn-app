@@ -1,5 +1,5 @@
 export type ActionAuditParentType = 'pawn' | 'loan'
-export type ActionAuditEntityType = 'interest_payment' | 'loan_transaction'
+export type ActionAuditEntityType = 'pawn' | 'interest_payment' | 'loan_transaction'
 export type ActionAuditEventType = 'update' | 'delete'
 
 export type ActionAuditRow = {

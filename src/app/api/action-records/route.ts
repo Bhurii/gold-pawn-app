@@ -1,30 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { insertActionAudit, type ActionAuditEntityType, type ActionAuditEventType, type ActionAuditParentType } from '@/lib/action-audit'
+import { isFundOwnerKey } from '@/lib/fund-owner'
 import { createAdminClient } from '@/lib/server/admin'
 import { canAccessFundOwner } from '@/lib/server/fund-access'
 import { readSessionFromRequest } from '@/lib/server/app-session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-type InterestPaymentRow = {
-  id: string
-  pawn_id: string
-  payment_date: string
-  amount: number
-  slip_url: string | null
-  note: string | null
-}
-
-type LoanTxnRow = {
-  id: string
-  loan_id: string
-  type: string
-  transaction_date: string
-  amount: number
-  slip_url: string | null
-  note: string | null
-}
 
 function asString(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
@@ -113,7 +95,7 @@ export async function POST(request: NextRequest) {
     ? body.changes as Record<string, unknown>
     : {}
 
-  if (!recordId || !parentId || !['update', 'delete'].includes(mode) || !['interest_payment', 'loan_transaction'].includes(entityType) || !['pawn', 'loan'].includes(parentType)) {
+  if (!recordId || !parentId || !['update', 'delete'].includes(mode) || !['pawn', 'interest_payment', 'loan_transaction'].includes(entityType) || !['pawn', 'loan'].includes(parentType)) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
@@ -127,6 +109,67 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    if (entityType === 'pawn') {
+      if (parentType !== 'pawn' || mode !== 'update') {
+        return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+      }
+
+      const { data: current, error: currentError } = await supabase
+        .from('pawns')
+        .select('id, ticket_no, pawn_date, amount, fund_owner, notes')
+        .eq('id', recordId)
+        .maybeSingle()
+
+      if (currentError) throw currentError
+      if (!current || current.id !== parentId) {
+        return NextResponse.json({ error: 'Pawn not found' }, { status: 404 })
+      }
+
+      const ticketNo = changes.ticket_no === undefined ? current.ticket_no : asString(changes.ticket_no)
+      const pawnDate = changes.pawn_date === undefined ? current.pawn_date : asDateString(changes.pawn_date)
+      const amount = changes.amount === undefined ? Number(current.amount || 0) : asPositiveNumber(changes.amount)
+      const fundOwner = changes.fund_owner === undefined ? current.fund_owner : asString(changes.fund_owner)
+      const notes = changes.notes === undefined ? current.notes : asOptionalString(changes.notes)
+
+      if (!ticketNo || !pawnDate || !amount || !fundOwner || !isFundOwnerKey(fundOwner)) {
+        return NextResponse.json({ error: 'ข้อมูลแก้ไขไม่ถูกต้อง' }, { status: 400 })
+      }
+      if (!canAccessFundOwner(user, fundOwner)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { data: updated, error: updateError } = await supabase
+        .from('pawns')
+        .update({
+          ticket_no: ticketNo,
+          pawn_date: pawnDate,
+          amount,
+          fund_owner: fundOwner,
+          notes,
+        })
+        .eq('id', recordId)
+        .select('id, ticket_no, pawn_date, amount, fund_owner, notes')
+        .single()
+
+      if (updateError) throw updateError
+
+      const auditResult = await insertActionAudit(supabase, {
+        entity_type: 'pawn',
+        entity_id: recordId,
+        parent_type: 'pawn',
+        parent_id: parentId,
+        event_type: 'update',
+        actor_user_key: user.user_key,
+        actor_display_name: user.display_name,
+        remark,
+        before_data: current,
+        after_data: updated,
+      })
+
+      if (auditResult.error) throw auditResult.error
+      return NextResponse.json({ record: updated })
+    }
+
     if (entityType === 'interest_payment') {
       const { data: current, error: currentError } = await supabase
         .from('interest_payments')
