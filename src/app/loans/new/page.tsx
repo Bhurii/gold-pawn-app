@@ -4,12 +4,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
 import { getSession } from '@/lib/auth'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { insertNotificationRecord } from '@/lib/notification-store'
-import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, getNotificationRecipientsForFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
+import { FUND_OWNER_BADGES, FUND_OWNER_LABELS, getAccessibleFundOwners, getDefaultFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
-import { supabase } from '@/lib/supabase'
 import { errorMessage, parseNonNegativeMoney, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 export default function NewLoan() {
@@ -43,37 +39,27 @@ export default function NewLoan() {
       const interestRate = parseNonNegativeMoney(form.interest_rate, 'Interest rate')
       const startDate = requireDate(form.start_date, 'Start date')
 
-      const { data: loan, error } = await supabase.from('loans').insert({
-        borrower_name: form.borrower_name,
-        start_date: startDate,
-        principal,
-        remaining_principal: principal,
-        interest_rate: interestRate,
-        fund_owner: fundOwner,
-        notes: form.notes,
-        status: 'active',
-      }).select().single()
-      if (error) throw error
-
-      const txnInsert = await supabase.from('loan_transactions').insert({
-        loan_id: loan.id,
-        type: 'principal',
-        amount: principal,
-        transaction_date: startDate,
-        note: 'ปล่อยกู้ครั้งแรก',
+      const response = await fetch('/api/loans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          borrower_name: form.borrower_name,
+          start_date: startDate,
+          principal,
+          interest_rate: interestRate,
+          fund_owner: fundOwner,
+          notes: form.notes,
+        }),
       })
-      assertSupabaseMutation(txnInsert, 'บันทึกประวัติสินเชื่อไม่สำเร็จ')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายการสินเชื่อไม่สำเร็จ')
+      }
 
-      const notificationInsert = await insertNotificationRecord(supabase, {
-        type: 'loan_created',
-        message: `ปล่อยกู้ใหม่ ${form.borrower_name} ฿${principal.toLocaleString('th-TH')} ของ${FUND_OWNER_LABELS[fundOwner]}`,
-        action_url: createNotificationAction(`/loans/${loan.id}`, [...getNotificationRecipientsForFundOwner(fundOwner)]),
-      })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
-      await pingPushDispatch()
+      void pingPushDispatch()
 
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'สร้างรายการสินเชื่อใหม่เรียบร้อยแล้ว' })
-      router.push(`/loans/${loan.id}`)
+      router.push(`/loans/${payload.loanId}`)
     } catch (e) {
       showToast({ tone: 'error', title: 'บันทึกไม่สำเร็จ', message: errorMessage(e) })
     } finally {

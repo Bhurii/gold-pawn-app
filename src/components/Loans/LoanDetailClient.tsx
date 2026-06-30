@@ -8,8 +8,6 @@ import { getSession } from '@/lib/auth'
 import { getReadableUserName } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
-import { supabase } from '@/lib/supabase'
 import type { LoanDetailData, LoanRow, LoanTxnRow } from '@/lib/server/loan-detail'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
@@ -267,8 +265,15 @@ export default function LoanDetailClient({ loanId, initialData }: Props) {
     try {
       assertImageFile(file)
       const slipUrl = await uploadSlip(file, 'loans')
-      const updateResult = await supabase.from('loan_transactions').update({ slip_url: slipUrl }).eq('id', txnId)
-      assertSupabaseMutation(updateResult, 'บันทึกสลิปย้อนหลังไม่สำเร็จ')
+      const response = await fetch('/api/loan-transactions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transaction_id: txnId, slip_url: slipUrl }),
+      })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกสลิปย้อนหลังไม่สำเร็จ')
+      }
       await loadData()
       showToast({ tone: 'success', title: 'อัปสลิปแล้ว', message: 'เพิ่มหลักฐานย้อนหลังเรียบร้อย' })
     } catch (error) {

@@ -139,3 +139,41 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ transaction: txn })
 }
+
+export async function PATCH(request: NextRequest) {
+  const user = readSessionFromRequest(request)
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await request.json().catch(() => null)
+  const transactionId = asString(body?.transaction_id)
+  const slipUrl = asOptionalString(body?.slip_url)
+
+  if (!transactionId || !slipUrl) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+  }
+
+  const supabase = createAdminClient()
+  const { data: txn, error: txnError } = await supabase
+    .from('loan_transactions')
+    .select('id, loan_id, loans!inner(id, fund_owner)')
+    .eq('id', transactionId)
+    .maybeSingle()
+
+  if (txnError) {
+    return NextResponse.json({ error: txnError.message }, { status: 500 })
+  }
+
+  const fundOwner = txn?.loans && typeof txn.loans === 'object' && 'fund_owner' in txn.loans ? String(txn.loans.fund_owner || '') : ''
+  if (!txn || !canAccessFundOwner(user, fundOwner)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const { error: updateError } = await supabase.from('loan_transactions').update({ slip_url: slipUrl }).eq('id', transactionId)
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ ok: true })
+}

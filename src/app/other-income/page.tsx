@@ -3,11 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
-import { createNotificationAction } from '@/lib/notification-meta'
-import { insertNotificationRecord } from '@/lib/notification-store'
 import { pingPushDispatch } from '@/lib/push-client'
-import { assertSupabaseMutation } from '@/lib/supabase-mutation'
-import { supabase } from '@/lib/supabase'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type OtherIncomeRow = {
@@ -32,12 +28,23 @@ export default function OtherIncome() {
     note: '',
   })
 
-  useEffect(() => { void loadData() }, [])
+  useEffect(() => {
+    void loadData()
+  }, [])
 
   async function loadData() {
-    const { data } = await supabase.from('other_income').select('id, income_date, amount, source, note').order('income_date', { ascending: false })
-    if (data) setList(data as OtherIncomeRow[])
-    setLoading(false)
+    try {
+      const response = await fetch('/api/other-income', { cache: 'no-store' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'โหลดข้อมูลไม่สำเร็จ')
+      }
+      setList(Array.isArray(payload.list) ? payload.list : [])
+    } catch (error) {
+      showToast({ tone: 'error', title: 'โหลดไม่สำเร็จ', message: errorMessage(error) })
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleSave() {
@@ -51,22 +58,22 @@ export default function OtherIncome() {
       const amount = parsePositiveMoney(form.amount, 'Income amount')
       const incomeDate = requireDate(form.income_date, 'Income date')
 
-      const incomeInsert = await supabase.from('other_income').insert({
-        income_date: incomeDate,
-        amount,
-        source: form.source,
-        note: form.note,
+      const response = await fetch('/api/other-income', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          income_date: incomeDate,
+          amount,
+          source: form.source,
+          note: form.note,
+        }),
       })
-      assertSupabaseMutation(incomeInsert, 'บันทึกรายได้ไม่สำเร็จ')
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(typeof payload?.error === 'string' ? payload.error : 'บันทึกรายได้ไม่สำเร็จ')
+      }
 
-      const notificationInsert = await insertNotificationRecord(supabase, {
-        type: 'other_income_added',
-        message: `มีรายได้ใหม่ ${form.source} ฿${amount.toLocaleString('th-TH')}`,
-        action_url: createNotificationAction('/other-income', ['all']),
-      })
-      assertSupabaseMutation(notificationInsert, 'บันทึกการแจ้งเตือนไม่สำเร็จ')
-      await pingPushDispatch()
-
+      void pingPushDispatch()
       setForm({ income_date: new Date().toISOString().split('T')[0], amount: '', source: '', note: '' })
       setShowForm(false)
       showToast({ tone: 'success', title: 'บันทึกสำเร็จ', message: 'เพิ่มรายได้อื่นเรียบร้อยแล้ว' })
@@ -132,7 +139,7 @@ export default function OtherIncome() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {list.map((item) => (
             <div key={item.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(240,192,64,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>💵</div>
+              <div style={{ width: 46, height: 46, borderRadius: 14, background: 'rgba(240,192,64,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>$</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 16, fontWeight: 700 }}>{item.source}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{new Date(item.income_date).toLocaleDateString('th-TH')}</div>
