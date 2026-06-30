@@ -27,6 +27,7 @@ type LoanRow = {
 
 type LoanListCache = {
   loans: LoanRow[]
+  savedAt: number
 }
 
 function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
@@ -84,16 +85,17 @@ export default function LoanList() {
   }, [canViewAll, defaultScope, searchParams])
 
   useEffect(() => {
-    hydrateFromCache(filter, ownerScope)
-    void loadLoans()
+    const cacheFresh = hydrateFromCache(filter, ownerScope)
+    if (!cacheFresh) {
+      void loadLoans()
+    }
   }, [filter, ownerScope])
 
   useEffect(() => {
-    loans.slice(0, 8).forEach((loan) => {
+    loans.slice(0, 3).forEach((loan) => {
       router.prefetch(`/loans/${loan.id}`)
     })
     router.prefetch('/')
-    router.prefetch('/loans/new')
   }, [loans, router])
 
   useEffect(() => {
@@ -121,7 +123,7 @@ export default function LoanList() {
       const nextLoans = (payload?.loans || []) as LoanRow[]
       setLoans(nextLoans)
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(filter, ownerScope), JSON.stringify({ loans: nextLoans } satisfies LoanListCache))
+        window.sessionStorage.setItem(getCacheKey(filter, ownerScope), JSON.stringify({ loans: nextLoans, savedAt: Date.now() } satisfies LoanListCache))
       }
     } catch {
       setLoans([])
@@ -135,15 +137,17 @@ export default function LoanList() {
   }
 
   function hydrateFromCache(nextFilter: 'all' | 'active' | 'closed', nextScope: string) {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined') return false
     try {
       const raw = window.sessionStorage.getItem(getCacheKey(nextFilter, nextScope))
-      if (!raw) return
+      if (!raw) return false
       const cached = JSON.parse(raw) as LoanListCache
       setLoans(cached.loans || [])
       setLoading(false)
+      return Date.now() - Number(cached.savedAt || 0) < 30_000
     } catch {
       // Ignore invalid cache and refetch.
+      return false
     }
   }
 

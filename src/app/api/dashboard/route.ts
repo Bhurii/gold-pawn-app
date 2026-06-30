@@ -19,15 +19,17 @@ export async function GET(request: NextRequest) {
   const ownerScope = resolveFundScope(user, new URL(request.url).searchParams.get('owner_scope'))
   const data = await getOrSetMemoryCache(`api:dashboard:${ownerScope}:${firstDay}`, 15000, async () => {
     const supabase = createAdminClient()
-    let pawnsQuery = supabase.from('pawns').select('id, ticket_no, fund_owner, amount, tx_status').eq('status', 'active')
-    let pendingRedeemQuery = supabase.from('redemptions').select('id, pawn_id, status, pawns(ticket_no, amount, fund_owner)').eq('status', 'pending_confirm')
+    let activePawnsQuery = supabase.from('pawns').select('amount, tx_status').eq('status', 'active')
+    let pendingPawnCountQuery = supabase.from('pawns').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('tx_status', 'pending_transfer')
+    let pendingRedeemCountQuery = supabase.from('redemptions').select('*', { count: 'exact', head: true }).eq('status', 'pending_confirm')
     let loansQuery = supabase.from('loans').select('id, remaining_principal').eq('status', 'active')
     let interestsQuery = supabase.from('interest_payments').select('amount, pawns!inner(fund_owner)').gte('payment_date', firstDay)
     let redemptionsQuery = supabase.from('redemptions').select('interest_last, pawns!inner(fund_owner)').gte('redeem_date', firstDay)
     let loanTxQuery = supabase.from('loan_transactions').select('amount, loans!inner(fund_owner)').eq('type', 'interest').gte('transaction_date', firstDay)
 
-    pawnsQuery = applyFundScopeFilter(pawnsQuery, ownerScope)
-    pendingRedeemQuery = ownerScope === 'all' ? pendingRedeemQuery : pendingRedeemQuery.eq('pawns.fund_owner', ownerScope)
+    activePawnsQuery = applyFundScopeFilter(activePawnsQuery, ownerScope)
+    pendingPawnCountQuery = applyFundScopeFilter(pendingPawnCountQuery, ownerScope)
+    pendingRedeemCountQuery = ownerScope === 'all' ? pendingRedeemCountQuery : pendingRedeemCountQuery.eq('pawns.fund_owner', ownerScope)
     loansQuery = applyFundScopeFilter(loansQuery, ownerScope)
     interestsQuery = ownerScope === 'all' ? interestsQuery : interestsQuery.eq('pawns.fund_owner', ownerScope)
     redemptionsQuery = ownerScope === 'all' ? redemptionsQuery : redemptionsQuery.eq('pawns.fund_owner', ownerScope)
@@ -35,15 +37,17 @@ export async function GET(request: NextRequest) {
 
     const [
       { data: pawns },
-      { data: pendingR },
+      { count: pendingPawnsCount },
+      { count: pendingRedeemsCount },
       { data: loans },
       { data: interests },
       { data: redemptions },
       { data: loanTxns },
       budgets,
     ] = await Promise.all([
-      pawnsQuery,
-      pendingRedeemQuery,
+      activePawnsQuery,
+      pendingPawnCountQuery,
+      pendingRedeemCountQuery,
       loansQuery,
       interestsQuery,
       redemptionsQuery,
@@ -64,11 +68,8 @@ export async function GET(request: NextRequest) {
       activeLoans: (loans || []).length,
       loanAmount: (loans || []).reduce((sum, loan) => sum + Number(loan.remaining_principal || 0), 0),
       monthInterest,
-      pendingPawns: (pawns || []).filter((pawn) => pawn.tx_status === 'pending_transfer'),
-      pendingRedeems: (pendingR || []).map((redeem) => ({
-        ...redeem,
-        pawns: Array.isArray(redeem.pawns) ? redeem.pawns[0] ?? null : redeem.pawns,
-      })),
+      pendingPawnsCount: pendingPawnsCount || 0,
+      pendingRedeemsCount: pendingRedeemsCount || 0,
     }
   })
 

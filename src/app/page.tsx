@@ -9,20 +9,6 @@ import { fmt } from '@/lib/utils'
 import BottomNav from '@/components/BottomNav'
 import NotificationBell from '@/components/NotificationBell'
 
-type PendingRedeem = {
-  id: string
-  pawn_id: string
-  status: string
-  pawns?: { ticket_no?: string | null; amount?: number | null } | null
-}
-
-type PendingPawn = {
-  id: string
-  ticket_no: string
-  amount: number
-  tx_status: string
-}
-
 type DashboardPayload = {
   budget: number
   activePawns: number
@@ -30,9 +16,13 @@ type DashboardPayload = {
   activeLoans: number
   loanAmount: number
   monthInterest: number
-  pendingPawns: PendingPawn[]
-  pendingRedeems: PendingRedeem[]
+  pendingPawnsCount: number
+  pendingRedeemsCount: number
   user: AppUser
+}
+
+type DashboardCache = DashboardPayload & {
+  savedAt: number
 }
 
 export default function Dashboard() {
@@ -44,8 +34,8 @@ export default function Dashboard() {
   const [activeLoans, setActiveLoans] = useState(0)
   const [loanAmount, setLoanAmount] = useState(0)
   const [monthInterest, setMonthInterest] = useState(0)
-  const [pendingPawns, setPendingPawns] = useState<PendingPawn[]>([])
-  const [pendingRedeems, setPendingRedeems] = useState<PendingRedeem[]>([])
+  const [pendingPawnsCount, setPendingPawnsCount] = useState(0)
+  const [pendingRedeemsCount, setPendingRedeemsCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [ownerScope, setOwnerScope] = useState<'tony' | 'louise' | 'phat'>(() => {
     const session = getSession()
@@ -61,14 +51,13 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => {
-    hydrateFromCache(ownerScope)
-    void loadDashboard(ownerScope)
+    const cacheFresh = hydrateFromCache(ownerScope)
+    if (!cacheFresh) {
+      void loadDashboard(ownerScope)
+    }
     router.prefetch('/pawns')
     router.prefetch('/loans')
-    router.prefetch('/report')
-    router.prefetch('/settings')
     router.prefetch('/pawn/new')
-    router.prefetch('/loans/new')
   }, [ownerScope, router])
 
   function getCacheKey(scope: string) {
@@ -76,24 +65,26 @@ export default function Dashboard() {
   }
 
   function hydrateFromCache(scope: string) {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined') return false
 
     try {
       const raw = window.sessionStorage.getItem(getCacheKey(scope))
-      if (!raw) return
-      const cached = JSON.parse(raw) as DashboardPayload
+      if (!raw) return false
+      const cached = JSON.parse(raw) as DashboardCache
       setBudget(Number(cached.budget || 0))
       setActivePawns(Number(cached.activePawns || 0))
       setActiveAmount(Number(cached.activeAmount || 0))
       setActiveLoans(Number(cached.activeLoans || 0))
       setLoanAmount(Number(cached.loanAmount || 0))
       setMonthInterest(Number(cached.monthInterest || 0))
-      setPendingPawns(cached.pendingPawns || [])
-      setPendingRedeems(cached.pendingRedeems || [])
+      setPendingPawnsCount(Number(cached.pendingPawnsCount || 0))
+      setPendingRedeemsCount(Number(cached.pendingRedeemsCount || 0))
       setUser(cached.user || getSession())
       setLoading(false)
+      return Date.now() - Number(cached.savedAt || 0) < 30_000
     } catch {
       // Ignore invalid cache and refetch.
+      return false
     }
   }
 
@@ -112,11 +103,11 @@ export default function Dashboard() {
       setActiveLoans(Number(data.activeLoans || 0))
       setLoanAmount(Number(data.loanAmount || 0))
       setMonthInterest(Number(data.monthInterest || 0))
-      setPendingPawns(data.pendingPawns || [])
-      setPendingRedeems(data.pendingRedeems || [])
+      setPendingPawnsCount(Number(data.pendingPawnsCount || 0))
+      setPendingRedeemsCount(Number(data.pendingRedeemsCount || 0))
       setUser(data.user || getSession())
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(getCacheKey(scope), JSON.stringify(data))
+        window.sessionStorage.setItem(getCacheKey(scope), JSON.stringify({ ...data, savedAt: Date.now() } satisfies DashboardCache))
       }
     } finally {
       setLoading(false)
@@ -127,7 +118,7 @@ export default function Dashboard() {
   const remaining = budget - totalInvested
   const usedPct = budget > 0 ? Math.round((totalInvested / budget) * 100) : 0
   const roi = budget > 0 ? ((monthInterest / budget) * 12 * 100).toFixed(1) : '0.0'
-  const pendingCount = pendingPawns.length + pendingRedeems.length
+  const pendingCount = pendingPawnsCount + pendingRedeemsCount
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', color: 'var(--gold)', fontSize: 18 }}>
