@@ -46,7 +46,7 @@ export default function ConfirmRedeem() {
 
   async function loadData() {
     try {
-      const response = await fetch(`/api/pawns/${encodeURIComponent(String(id))}`, { cache: 'no-store' })
+      const response = await fetch(`/api/redemptions/${encodeURIComponent(String(id))}`, { cache: 'no-store' })
       const payload = await response.json()
       if (!response.ok) {
         throw new Error(payload?.error || 'โหลดข้อมูลตั๋วไม่สำเร็จ')
