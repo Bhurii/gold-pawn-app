@@ -38,6 +38,7 @@ type ReportCache = ReportPayload & {
 }
 
 type SelectedPeriod = number | 'all'
+const REPORT_CACHE_VERSION = 'v2'
 
 export default function Report() {
   const router = useRouter()
@@ -106,7 +107,7 @@ export default function Report() {
   }
 
   function getCacheKey(year: number, scope: string, period: SelectedPeriod) {
-    return `report:${scope}:${year}:${period === 'all' ? 'all' : period}`
+    return `report:${REPORT_CACHE_VERSION}:${scope}:${year}:${period === 'all' ? 'all' : period}`
   }
 
   function hydrateFromCache(year: number, scope: string, period: SelectedPeriod) {

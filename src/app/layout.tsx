@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import AuthGuard from '@/components/AuthGuard'
+import InstallPromptGate from '@/components/InstallPromptGate'
 import PwaBootstrap from '@/components/PwaBootstrap'
 import ToastProvider from '@/components/ToastProvider'
 
@@ -34,6 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthGuard>
           <ToastProvider>
             <PwaBootstrap />
+            <InstallPromptGate />
             {children}
           </ToastProvider>
         </AuthGuard>
