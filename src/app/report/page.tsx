@@ -26,6 +26,8 @@ type ReportPayload = {
   budget: number
   activePawnsAmount: number
   activeLoansAmount: number
+  newPawnsCount: number
+  newPawnsAmount: number
   monthlyData: number[]
   pawnDetails: PawnDetail[]
   loanDetails: LoanDetail[]
@@ -126,6 +128,8 @@ export default function Report() {
     budget: 0,
     activePawnsAmount: 0,
     activeLoansAmount: 0,
+    newPawnsCount: 0,
+    newPawnsAmount: 0,
     monthlyData: Array(12).fill(0),
     pawnDetails: [] as PawnDetail[],
     loanDetails: [] as LoanDetail[],
@@ -150,6 +154,7 @@ export default function Report() {
   const secondaryRoiValue = isYearView
     ? (safeReport.budget > 0 ? ((totalInterest / safeReport.budget) * 100 / 12).toFixed(2) : '0.00')
     : (safeReport.budget > 0 ? ((totalInterest / safeReport.budget) * 12 * 100).toFixed(1) : '0.0')
+  const newPawnsLabel = isYearView ? 'รับจำนำใหม่ทั้งปี' : 'รับจำนำใหม่เดือนนี้'
 
   return (
     <main className="page-container">
@@ -252,6 +257,16 @@ export default function Report() {
               <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{secondaryRoiLabel}</div>
                 <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold)' }}>{secondaryRoiValue}%</div>
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+              <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{newPawnsLabel}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-light)' }}>{safeReport.newPawnsCount} รายการ</div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 12, padding: '10px 12px', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>ยอดรับจำนำใหม่</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--gold-light)' }}>฿{fmt(safeReport.newPawnsAmount)}</div>
               </div>
             </div>
           </div>

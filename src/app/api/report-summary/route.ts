@@ -91,6 +91,13 @@ export async function GET(request: NextRequest) {
       .gte('transaction_date', detailRange.firstDay)
       .lte('transaction_date', detailRange.lastDay)
 
+    let newPawnsQuery = supabase
+      .from('pawns')
+      .select('amount')
+      .is('renewed_from_id', null)
+      .gte('pawn_date', detailRange.firstDay)
+      .lte('pawn_date', detailRange.lastDay)
+
     let pawnsQuery = supabase.from('pawns').select('amount').eq('status', 'active').eq('tx_status', 'active')
     let loansQuery = supabase.from('loans').select('remaining_principal').eq('status', 'active')
 
@@ -101,6 +108,7 @@ export async function GET(request: NextRequest) {
       interestDetailsQuery = interestDetailsQuery.eq('pawns.fund_owner', ownerScope)
       redemptionDetailsQuery = redemptionDetailsQuery.eq('pawns.fund_owner', ownerScope)
       loanDetailsQuery = loanDetailsQuery.eq('loans.fund_owner', ownerScope)
+      newPawnsQuery = newPawnsQuery.eq('fund_owner', ownerScope)
       pawnsQuery = applyFundScopeFilter(pawnsQuery, ownerScope)
       loansQuery = applyFundScopeFilter(loansQuery, ownerScope)
     }
@@ -112,6 +120,7 @@ export async function GET(request: NextRequest) {
       { data: interestDetails },
       { data: redemptionDetails },
       { data: loanDetailRows },
+      { data: newPawns },
       { data: pawns },
       { data: loans },
       budgets,
@@ -122,6 +131,7 @@ export async function GET(request: NextRequest) {
       interestDetailsQuery,
       redemptionDetailsQuery,
       loanDetailsQuery,
+      newPawnsQuery,
       pawnsQuery,
       loansQuery,
       loadBudgetState(),
@@ -176,6 +186,8 @@ export async function GET(request: NextRequest) {
       budget: getBudgetForScope(budgets, ownerScope),
       activePawnsAmount: (pawns || []).reduce((sum, pawn) => sum + Number(pawn.amount || 0), 0),
       activeLoansAmount: (loans || []).reduce((sum, loan) => sum + Number(loan.remaining_principal || 0), 0),
+      newPawnsCount: (newPawns || []).length,
+      newPawnsAmount: (newPawns || []).reduce((sum, pawn) => sum + Number(pawn.amount || 0), 0),
       monthlyData,
       pawnDetails: pawnDetails.sort((a, b) => b.date.localeCompare(a.date)),
       loanDetails: loanDetails.sort((a, b) => b.date.localeCompare(a.date)),
