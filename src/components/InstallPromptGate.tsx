@@ -33,6 +33,10 @@ export default function InstallPromptGate() {
     if (typeof window === 'undefined') return
 
     const displayModeQuery = window.matchMedia('(display-mode: standalone)')
+    const legacyDisplayModeQuery = displayModeQuery as MediaQueryList & {
+      addListener?: (listener: (event: MediaQueryListEvent) => void) => void
+      removeListener?: (listener: (event: MediaQueryListEvent) => void) => void
+    }
     const standalone = isStandaloneMode()
     const ua = window.navigator.userAgent || ''
     const mobile = /Android|iPhone|iPad|iPod/i.test(ua)
@@ -75,20 +79,20 @@ export default function InstallPromptGate() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
     window.addEventListener('appinstalled', handleAppInstalled)
-    if ('addEventListener' in displayModeQuery) {
+    if (typeof displayModeQuery.addEventListener === 'function') {
       displayModeQuery.addEventListener('change', handleDisplayModeChange)
     } else {
-      displayModeQuery.addListener(handleDisplayModeChange)
+      legacyDisplayModeQuery.addListener?.(handleDisplayModeChange)
     }
 
     return () => {
       window.clearTimeout(revealFallback)
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
       window.removeEventListener('appinstalled', handleAppInstalled)
-      if ('removeEventListener' in displayModeQuery) {
+      if (typeof displayModeQuery.removeEventListener === 'function') {
         displayModeQuery.removeEventListener('change', handleDisplayModeChange)
       } else {
-        displayModeQuery.removeListener(handleDisplayModeChange)
+        legacyDisplayModeQuery.removeListener?.(handleDisplayModeChange)
       }
     }
   }, [])
