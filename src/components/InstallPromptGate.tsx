@@ -27,6 +27,9 @@ export default function InstallPromptGate() {
   const [isIos, setIsIos] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [installing, setInstalling] = useState(false)
+  const [installationAccepted, setInstallationAccepted] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+  const [pushBlocked, setPushBlocked] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
 
   useEffect(() => {
@@ -66,7 +69,9 @@ export default function InstallPromptGate() {
     const handleAppInstalled = () => {
       setDeferredPrompt(null)
       setIsStandalone(true)
-      setStatusMessage('ติดตั้งแอปแล้ว ครั้งต่อไปเข้าใช้งานผ่านไอคอนแอปได้เลย')
+      setInstallationAccepted(true)
+      setVisible(true)
+      setStatusMessage('ติดตั้งแอปแล้ว กดปุ่มด้านล่างเพื่อเปิดการแจ้งเตือน')
     }
 
     const handleDisplayModeChange = () => {
@@ -113,9 +118,42 @@ export default function InstallPromptGate() {
     ]
   }, [isIos])
 
+  async function requestNotifications() {
+    setInstalling(true)
+    setStatusMessage('')
+    try {
+      await enablePushNotifications()
+      setNotificationsEnabled(true)
+      setPushBlocked(false)
+      setStatusMessage('ติดตั้งแอปและเปิดการแจ้งเตือนแล้ว')
+    } catch (error) {
+      const nextState = getPushState()
+      setPushBlocked(nextState === 'blocked')
+      if (nextState === 'enabled') {
+        setNotificationsEnabled(true)
+        setStatusMessage('การแจ้งเตือนเปิดอยู่แล้วบนเครื่องนี้')
+      } else if (nextState === 'blocked') {
+        setStatusMessage('ติดตั้งแอปแล้ว แต่การแจ้งเตือนถูกปิดไว้ กรุณาเปิดสิทธิ์แจ้งเตือนในการตั้งค่าเบราว์เซอร์')
+      } else {
+        setStatusMessage(error instanceof Error ? error.message : 'ติดตั้งแอปแล้ว แต่ยังเปิดการแจ้งเตือนไม่สำเร็จ')
+      }
+    } finally {
+      setInstalling(false)
+    }
+  }
+
   async function handleInstall() {
     if (isIos) {
       setVisible(false)
+      return
+    }
+
+    if (installationAccepted) {
+      if (notificationsEnabled || pushBlocked) {
+        setVisible(false)
+      } else {
+        await requestNotifications()
+      }
       return
     }
 
@@ -127,18 +165,10 @@ export default function InstallPromptGate() {
       await deferredPrompt.prompt()
       const choice = await deferredPrompt.userChoice
       if (choice.outcome === 'accepted') {
-        try {
-          await enablePushNotifications()
-          setStatusMessage('ติดตั้งแอปและเปิดแจ้งเตือนให้แล้วบนเครื่องนี้')
-        } catch (error) {
-          const nextState = getPushState()
-          if (nextState === 'enabled') {
-            setStatusMessage('ติดตั้งแอปแล้ว และเครื่องนี้เปิดแจ้งเตือนอยู่แล้ว')
-          } else {
-            setStatusMessage(error instanceof Error ? error.message : 'ติดตั้งแอปแล้ว แต่ยังเปิดแจ้งเตือนไม่สำเร็จ')
-          }
-        }
-        setVisible(false)
+        setInstallationAccepted(true)
+        setVisible(true)
+        setStatusMessage('ติดตั้งแล้ว กำลังขออนุญาตเปิดการแจ้งเตือน')
+        await requestNotifications()
       } else {
         setStatusMessage('ยังไม่ได้ติดตั้งแอปในรอบนี้')
       }
@@ -148,16 +178,22 @@ export default function InstallPromptGate() {
     }
   }
 
-  if (!visible || !isMobile || isStandalone) {
+  if (!visible || !isMobile || (isStandalone && !installationAccepted)) {
     return null
   }
 
-  const primaryLabel = isIos
-    ? 'เข้าใจแล้ว'
-    : deferredPrompt
-      ? (installing ? 'กำลังเปิดหน้าติดตั้ง...' : 'ติดตั้งแอป')
-      : 'รอปุ่มติดตั้งจากเบราว์เซอร์'
-  const primaryDisabled = (!deferredPrompt && !isIos) || installing
+  const primaryLabel = installationAccepted
+    ? installing
+      ? 'กำลังเปิดการแจ้งเตือน...'
+      : notificationsEnabled || pushBlocked
+        ? 'เสร็จแล้ว'
+        : 'เปิดการแจ้งเตือน'
+    : isIos
+      ? 'เข้าใจแล้ว'
+      : deferredPrompt
+        ? (installing ? 'กำลังเปิดหน้าติดตั้ง...' : 'ติดตั้งแอป')
+        : 'รอปุ่มติดตั้งจากเบราว์เซอร์'
+  const primaryDisabled = (!installationAccepted && !deferredPrompt && !isIos) || installing
 
   return (
     <div
@@ -229,9 +265,13 @@ export default function InstallPromptGate() {
           </div>
 
           <div style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: 20 }}>
-            ครั้งแรกเปิดผ่านลิงก์นี้ได้เลย จากนั้นกดติดตั้งไว้บนหน้าจอหลัก
+            {installationAccepted
+              ? 'ติดตั้งแอปแล้ว กดปุ่มด้านล่างเพื่ออนุญาตการแจ้งเตือน'
+              : 'เริ่มติดตั้งจากปุ่มด้านล่าง แล้วกดยืนยันในหน้าต่างของโทรศัพท์'}
             <br />
-            ครั้งต่อไปเข้าใช้งานผ่านไอคอนแอปได้ทันที{isIos ? ' แล้วค่อยเปิดแจ้งเตือนจากในแอป' : ' พร้อมเปิดแจ้งเตือนในขั้นตอนเดียวกัน'}
+            {isIos
+              ? 'เมื่อเพิ่มไอคอนที่หน้าจอแล้ว ให้เปิดแอปและกดเปิดแจ้งเตือนในแอป'
+              : 'การติดตั้งและการแจ้งเตือนต้องกดยืนยันตามที่โทรศัพท์แสดง'}
           </div>
 
           <div

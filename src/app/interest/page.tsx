@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
+import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { FUND_OWNER_BADGES, FUND_OWNER_BADGE_STYLES, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
@@ -15,6 +16,13 @@ type PawnRow = {
   pawn_date: string
   amount: number
   fund_owner?: FundOwnerKey
+}
+
+function getLocalDateValue() {
+  const today = new Date()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${today.getFullYear()}-${month}-${day}`
 }
 
 function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
@@ -49,7 +57,7 @@ function InterestContent() {
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     amount: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: getLocalDateValue(),
     note: '',
   })
 
@@ -213,8 +221,11 @@ function InterestContent() {
                 <input className="input-field" type="number" placeholder="เช่น 600" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               </div>
               <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่ตัดดอก</div>
-                <input className="input-field" type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} />
+                <ThaiDatePicker
+                  label="วันที่ตัดดอก"
+                  value={form.payment_date}
+                  onChange={(payment_date) => setForm((current) => ({ ...current, payment_date }))}
+                />
               </div>
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>สลิปโอนเงิน</div>
