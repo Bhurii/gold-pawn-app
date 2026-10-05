@@ -41,6 +41,14 @@ function normalizeFilter(value: string | null): PawnFilter {
   return VALID_FILTERS.includes(value as PawnFilter) ? (value as PawnFilter) : 'all'
 }
 
+function getTicketMatchRank(ticketNo: string, search: string) {
+  const ticket = ticketNo.trim().toLowerCase()
+  const query = search.trim().toLowerCase()
+  if (ticket === query) return 0
+  if (ticket.startsWith(query)) return 1
+  return 2
+}
+
 function OwnerBadge({ owner }: { owner: FundOwnerKey }) {
   return (
     <span
@@ -86,6 +94,12 @@ export default function PawnList() {
     return isFundOwnerKey(raw) ? raw : defaultScope
   })
   const scopeChips = useMemo(() => getScopeChips(session), [session])
+  const orderedPawns = useMemo(() => {
+    if (!debouncedSearch) return pawns
+    return [...pawns].sort((left, right) =>
+      getTicketMatchRank(left.ticket_no, debouncedSearch) - getTicketMatchRank(right.ticket_no, debouncedSearch),
+    )
+  }, [debouncedSearch, pawns])
 
   useEffect(() => {
     setFilter(normalizeFilter(searchParams.get('filter')))
@@ -271,7 +285,7 @@ export default function PawnList() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {pawns.map((pawn) => {
+          {orderedPawns.map((pawn) => {
             const badge = getBadge(pawn)
             const adjusted = adjustedMap.get(pawn.id)
             return (
