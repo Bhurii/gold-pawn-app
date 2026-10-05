@@ -105,9 +105,11 @@ export default function InstallPromptGate() {
   const instructions = useMemo(() => {
     if (isIos) {
       return [
-        'กดปุ่มแชร์ใน Safari',
-        'เลือก "Add to Home Screen"',
-        'เปิดผ่านไอคอนแอปที่หน้าโฮมครั้งถัดไป',
+        'เปิดลิงก์นี้ใน Safari',
+        'แตะปุ่มแชร์ แล้วเลือก "Add to Home Screen"',
+        'เปิด "Open as Web App" หากมี แล้วแตะ "Add"',
+        'กลับหน้าจอหลัก แล้วเปิดไอคอนห่านทองคำ',
+        'แตะ ⚙️ ตั้งค่า แล้วเปิดสวิตช์แจ้งเตือน',
       ]
     }
 
@@ -266,12 +268,14 @@ export default function InstallPromptGate() {
 
           <div style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--text-secondary)', marginBottom: 20 }}>
             {installationAccepted
-              ? 'ติดตั้งแอปแล้ว กดปุ่มด้านล่างเพื่ออนุญาตการแจ้งเตือน'
-              : 'เริ่มติดตั้งจากปุ่มด้านล่าง แล้วกดยืนยันในหน้าต่างของโทรศัพท์'}
+              ? 'ติดตั้งแอปแล้ว กดยอมรับคำขอแจ้งเตือนที่โทรศัพท์แสดง'
+              : isIos
+                ? 'ทำตามขั้นตอนด้านล่างเพื่อเพิ่มแอปไว้บนหน้าจอ iPhone'
+                : 'แตะติดตั้ง แล้วกดยอมรับ จากนั้นกดยอมรับคำขอแจ้งเตือนที่โทรศัพท์แสดง'}
             <br />
             {isIos
-              ? 'เมื่อเพิ่มไอคอนที่หน้าจอแล้ว ให้เปิดแอปและกดเปิดแจ้งเตือนในแอป'
-              : 'การติดตั้งและการแจ้งเตือนต้องกดยืนยันตามที่โทรศัพท์แสดง'}
+              ? 'iPhone ต้องเพิ่มแอปจาก Safari ก่อน จึงจะขอเปิดแจ้งเตือนได้'
+              : 'โทรศัพท์จะขออนุญาตแยกสำหรับติดตั้งและการแจ้งเตือน'}
           </div>
 
           <div
@@ -284,14 +288,14 @@ export default function InstallPromptGate() {
               marginBottom: 18,
             }}
           >
-            {instructions.map((step, index) => (
-              <div key={step} style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text-primary)' }}>
-                {index + 1}. {step}
-              </div>
-            ))}
+            {!installationAccepted && instructions.map((step, index) => (
+                <div key={step} style={{ fontSize: 15, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                  {index + 1}. {step}
+                </div>
+              ))}
           </div>
 
-          {isIos && (
+          {isIos && !installationAccepted && (
             <div
               style={{
                 textAlign: 'left',
@@ -305,8 +309,8 @@ export default function InstallPromptGate() {
                 lineHeight: 1.6,
               }}
             >
-              หลังติดตั้งเสร็จ ให้เปิดผ่านไอคอนแอปที่หน้าโฮมก่อนหนึ่งครั้ง
-              แล้วค่อยไปเปิดปุ่มแจ้งเตือนในแอป จึงจะใช้งานได้บน iPhone
+              การติดตั้งและการแจ้งเตือนบน iPhone ต้องยืนยันแยกกัน
+              เปิดแอปจากไอคอนก่อน แล้วใช้ปุ่มแจ้งเตือนในหน้าแรกหรือ ⚙️ ตั้งค่า
             </div>
           )}
 
