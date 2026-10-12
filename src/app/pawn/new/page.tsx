@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
+import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { getSession } from '@/lib/auth'
 import { FUND_OWNER_BADGES, getAccessibleFundOwners, getDefaultFundOwner, type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { assertImageFile, uploadSlip } from '@/lib/slip-storage'
-import { fmt, toThaiDateLong, toThaiDateShort } from '@/lib/utils'
+import { fmt, toThaiDateShort } from '@/lib/utils'
 import { errorMessage, parsePositiveMoney, requireDate } from '@/lib/validation'
 
 type ExistingPawn = {
@@ -261,9 +262,11 @@ export default function NewPawn() {
               <input className="input-field" placeholder="เช่น 23909" value={form.ticket_no} onChange={(e) => setForm({ ...form, ticket_no: e.target.value })} />
             </div>
             <div>
-              <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>วันที่จำนำ</div>
-              <input className="input-field" type="date" value={form.pawn_date} onChange={(e) => setForm({ ...form, pawn_date: e.target.value })} />
-              {form.pawn_date && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>{toThaiDateLong(form.pawn_date)}</div>}
+              <ThaiDatePicker
+                label="วันที่จำนำ"
+                value={form.pawn_date}
+                onChange={(pawn_date) => setForm((current) => ({ ...current, pawn_date }))}
+              />
             </div>
             <div>
               <div style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>ยอดเงิน</div>

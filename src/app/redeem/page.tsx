@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useToast } from '@/components/ToastProvider'
+import ThaiDatePicker from '@/components/ThaiDatePicker'
 import { type FundOwnerKey } from '@/lib/fund-owner'
 import { pingPushDispatch } from '@/lib/push-client'
 import { uploadSlip } from '@/lib/slip-storage'
@@ -21,6 +22,13 @@ type InterestPayment = {
   amount: number
 }
 
+function getLocalDateValue() {
+  const today = new Date()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${today.getFullYear()}-${month}-${day}`
+}
+
 function RedeemContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -37,7 +45,7 @@ function RedeemContent() {
   const [saving, setSaving] = useState(false)
   const [interestPayments, setInterestPayments] = useState<InterestPayment[]>([])
   const [form, setForm] = useState({
-    redeem_date: new Date().toISOString().split('T')[0],
+    redeem_date: getLocalDateValue(),
     interest_last: '',
   })
 
@@ -252,8 +260,13 @@ function RedeemContent() {
 
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>3. ดอกเบี้ยงวดสุดท้าย</div>
       <input className="input-field" type="number" placeholder="฿ จำนวนดอก" value={form.interest_last} onChange={(e) => setForm({ ...form, interest_last: e.target.value })} style={{ marginBottom: 12 }} />
-      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 8 }}>วันที่ไถ่ถอน</div>
-      <input className="input-field" type="date" value={form.redeem_date} onChange={(e) => setForm({ ...form, redeem_date: e.target.value })} style={{ marginBottom: 16 }} />
+      <div style={{ marginBottom: 16 }}>
+        <ThaiDatePicker
+          label="วันที่ไถ่ถอน"
+          value={form.redeem_date}
+          onChange={(redeem_date) => setForm((current) => ({ ...current, redeem_date }))}
+        />
+      </div>
 
       <div className="card" style={{ background: '#0A0A0A', borderRadius: 16, padding: 18, marginBottom: 20 }}>
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>สรุปยอด</div>
